@@ -54,10 +54,11 @@ for line in lines:
         if indices[i]=="1":
             has.append(attributes[i])
     labels[name]+=has
+print(labels)
 
 file6 = open('labels.csv', 'a')
 for key in labels:
-    line = key + " ,"+ 
+    line = key + " ,"
 
 
 '''
