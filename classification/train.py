@@ -8,6 +8,7 @@ from keras.utils import Sequence
 import sys
 import matplotlib.pyplot as plt
 from sklearn.utils import class_weight
+from keras.applications import ResNet50
 
 np.set_printoptions(threshold=sys.maxsize)
 pd.set_option('display.max_colwidth', None)
@@ -77,7 +78,8 @@ unwanted_labels = [
 'articleType_Kurtas',
 'articleType_Kurtis',
 'articleType_Clothing Set',
-'articleType_Waistcoat'
+'articleType_Waistcoat',
+'articleType_Tracksuits'
 ]
 df = df.drop(columns=unwanted_labels, errors='ignore')
 df = df[(df.drop(columns=['id']).sum(axis=1) > 0)]
@@ -132,19 +134,13 @@ x_train, x_test, y_train, y_test = train_test_split(X,y, test_size=0.2, random_s
 train_generator = DataGenerator(x_train, y_train, batch_size=32)
 test_generator = DataGenerator(x_test, y_test, batch_size=32)
 
+base_model = ResNet50(weights='imagenet', include_top=False, input_shape=(135, 180, 3))
+
+base_model.trainable = True
+
 
 model = tf.keras.Sequential([
-    tf.keras.layers.Conv2D(32, (3, 5), activation='relu', input_shape=(135, 180, 3)),
-    tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
-    tf.keras.layers.Dropout(0.3),
-    tf.keras.layers.Conv2D(64, (3, 5), activation='relu'),
-    tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
-    tf.keras.layers.Dropout(0.3),
-    tf.keras.layers.Conv2D(128, (3, 5), activation='relu'),
-    tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
-    tf.keras.layers.Dropout(0.3),
-    tf.keras.layers.Conv2D(256, (3, 5), activation='relu'),
-    tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
+    base_model,
     tf.keras.layers.Flatten(),
     tf.keras.layers.Dense(256, activation='relu'),
     tf.keras.layers.Dropout(0.3),
@@ -154,9 +150,9 @@ model = tf.keras.Sequential([
 
 model.compile(optimizer=tf.keras.optimizers.Adam(), loss='binary_crossentropy', metrics=['accuracy'])
 
-model.fit(train_generator, epochs=50, verbose = 2)
+model.fit(train_generator, epochs=13, verbose = 2)
 
-#test_loss, test_acc = model.evaluate(test_generator, verbose=2)
+test_loss, test_acc = model.evaluate(test_generator, verbose=2)
 
-#print('\nTest accuracy:', test_acc)
+print('\nTest accuracy:', test_acc)
 
