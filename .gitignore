@@ -3,3 +3,5 @@ classification/archive
 backend/config.py
 *.keras
 camera/capstone_cv
+classification/background.png
+classification/test.py
