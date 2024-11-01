@@ -8,7 +8,7 @@ from keras.utils import Sequence
 import sys
 import matplotlib.pyplot as plt
 from sklearn.utils import class_weight
-from keras.applications import EfficientNetB4
+from keras.applications import ResNet101V2
 from keras._tf_keras.keras.callbacks import EarlyStopping,ReduceLROnPlateau
 
 early_stopping = EarlyStopping(
@@ -34,6 +34,7 @@ df['articleType'] = df['articleType'].replace('Bomber', 'Jackets')
 df['articleType'] = df['articleType'].replace('Blazer', 'Blazers')
 df['articleType'] = df['articleType'].replace('Dress', 'Dresses')
 df['articleType'] = df['articleType'].replace('Tee', 'Tshirts')
+df['articleType'] = df['articleType'].replace('Blouse', 'Tops')
 df['articleType'] = df['articleType'].replace('Trunk', 'Trunks')
 df['articleType'] = df['articleType'].replace('Trunks', 'Shorts')
 df['articleType'] = df['articleType'].replace('Button-Down', 'Tops')
@@ -65,41 +66,44 @@ df['articleType'] = df['articleType'].replace('Skirt', 'Skirts')
 df['articleType'] = df['articleType'].replace('Jacket', 'Jackets')
 df['articleType'] = df['articleType'].replace('Nightdress', 'Dresses')
 df['articleType'] = df['articleType'].replace('Sweater', 'Sweaters')
-df['articleType'] = df['articleType'].replace('Romper', 'Rompers')
+df['articleType'] = df['articleType'].replace('Rompers', 'Dresses')
+df['articleType'] = df['articleType'].replace('Romper', 'Dresses')
 
 df = df[['id', 'articleType']] 
 df.dropna(inplace=True)
 
 df = pd.get_dummies(df, columns=['articleType']).astype(int)
-indices_to_drop = df[df['articleType_Blazers'] == 1].sample(n=2600, random_state=42).index
+indices_to_drop = df[df['articleType_Blazers'] == 1].sample(n=6000, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Blouse'] == 1].sample(n=19500, random_state=42).index
+indices_to_drop = df[df['articleType_Cardigan'] == 1].sample(n=12000, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Cardigan'] == 1].sample(n=8000, random_state=42).index
+indices_to_drop = df[df['articleType_Dresses'] == 1].sample(n=79000, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Dresses'] == 1].sample(n=67000, random_state=42).index
+indices_to_drop = df[df['articleType_Jackets'] == 1].sample(n=12500, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Jackets'] == 1].sample(n=9000, random_state=42).index
-df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Jeans'] == 1].sample(n=3000, random_state=42).index
+indices_to_drop = df[df['articleType_Jeans'] == 1].sample(n=6500, random_state=42).index
 df = df.drop(indices_to_drop)
 indices_to_drop = df[df['articleType_Jumpsuit'] == 1].sample(n=1000, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Lounge Pants'] == 1].sample(n=2000, random_state=42).index
+indices_to_drop = df[df['articleType_Lounge Pants'] == 1].sample(n=6500, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Rompers'] == 1].sample(n=2000, random_state=42).index
+indices_to_drop = df[df['articleType_Shorts'] == 1].sample(n=22000, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Shorts'] == 1].sample(n=18000, random_state=42).index
+indices_to_drop = df[df['articleType_Skirts'] == 1].sample(n=13600, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Skirts'] == 1].sample(n=9000, random_state=42).index
+indices_to_drop = df[df['articleType_Sweaters'] == 1].sample(n=12000, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Sweaters'] == 1].sample(n=8000, random_state=42).index
+indices_to_drop = df[df['articleType_Tank'] == 1].sample(n=14000, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Tank'] == 1].sample(n=10000, random_state=42).index
+indices_to_drop = df[df['articleType_Tshirts'] == 1].sample(n=38500, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Tshirts'] == 1].sample(n=35000, random_state=42).index
+indices_to_drop = df[df['articleType_Tops'] == 1].sample(n=35000, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Tops'] == 1].sample(n=7000, random_state=42).index
+indices_to_drop = df[df['articleType_Leggings'] == 1].sample(n=3500, random_state=42).index
+df = df.drop(indices_to_drop)
+indices_to_drop = df[df['articleType_Jumpsuit'] == 1].sample(n=3500, random_state=42).index
+df = df.drop(indices_to_drop)
+indices_to_drop = df[df['articleType_Hoodie'] == 1].sample(n=2500, random_state=42).index
 df = df.drop(indices_to_drop)
 
 unwanted_labels = [
@@ -162,7 +166,7 @@ df = df[(df.drop(columns=['id']).sum(axis=1) > 0)]
 label_counts = df.drop(columns=['id']).sum()
 print(label_counts)
 
-def preprocess_image(image_id, target_size=(300,300)):
+def preprocess_image(image_id, target_size=(224,224)):
     image_path = f'fashion-dataset/images/{image_id}.jpg'
     img = load_img(image_path, target_size=target_size, keep_aspect_ratio=True)
     img_array = img_to_array(img)
@@ -170,7 +174,7 @@ def preprocess_image(image_id, target_size=(300,300)):
     return img_array
 
 class DataGenerator(Sequence):
-    def __init__(self, image_ids, labels, batch_size=64, target_size=(300,300),augment=False, datagen=None, **kwargs):
+    def __init__(self, image_ids, labels, batch_size=64, target_size=(224,224),augment=False, datagen=None, **kwargs):
         super().__init__(**kwargs)
         self.image_ids = image_ids
         self.labels = labels
@@ -202,9 +206,9 @@ x_train, x_test, y_train, y_test = train_test_split(X,y, test_size=0.2, random_s
 train_generator = DataGenerator(x_train, y_train, batch_size=32)
 test_generator = DataGenerator(x_test, y_test, batch_size=32)
 
-base_model = EfficientNetB4(weights='imagenet', include_top=False, input_shape=(300,300, 3))
+base_model = ResNet101V2(weights='imagenet', include_top=False, input_shape=(224,224, 3))
 
-base_model.trainable = False
+base_model.trainable = True
 
 model = tf.keras.Sequential([
     base_model,
@@ -231,4 +235,4 @@ history = model.fit(
     verbose=2
 )
 
-model.save('type_model.keras')
+model.save('type_model_1.keras')
