@@ -8,7 +8,7 @@ from keras.utils import Sequence
 import sys
 import matplotlib.pyplot as plt
 from sklearn.utils import class_weight
-from keras.applications import ResNet101V2
+from keras.applications import EfficientNetB3
 from keras._tf_keras.keras.callbacks import EarlyStopping,ReduceLROnPlateau
 
 early_stopping = EarlyStopping(
@@ -75,35 +75,35 @@ df.dropna(inplace=True)
 df = pd.get_dummies(df, columns=['articleType']).astype(int)
 indices_to_drop = df[df['articleType_Blazers'] == 1].sample(n=6000, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Cardigan'] == 1].sample(n=12000, random_state=42).index
+indices_to_drop = df[df['articleType_Cardigan'] == 1].sample(n=11500, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Dresses'] == 1].sample(n=79000, random_state=42).index
+indices_to_drop = df[df['articleType_Dresses'] == 1].sample(n=78500, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Jackets'] == 1].sample(n=12500, random_state=42).index
+indices_to_drop = df[df['articleType_Jackets'] == 1].sample(n=12000, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Jeans'] == 1].sample(n=6500, random_state=42).index
+indices_to_drop = df[df['articleType_Jeans'] == 1].sample(n=6000, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Jumpsuit'] == 1].sample(n=1000, random_state=42).index
+indices_to_drop = df[df['articleType_Jumpsuit'] == 1].sample(n=500, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Lounge Pants'] == 1].sample(n=6500, random_state=42).index
+indices_to_drop = df[df['articleType_Lounge Pants'] == 1].sample(n=6000, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Shorts'] == 1].sample(n=22000, random_state=42).index
+indices_to_drop = df[df['articleType_Shorts'] == 1].sample(n=21500, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Skirts'] == 1].sample(n=13600, random_state=42).index
+indices_to_drop = df[df['articleType_Skirts'] == 1].sample(n=13100, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Sweaters'] == 1].sample(n=12000, random_state=42).index
+indices_to_drop = df[df['articleType_Sweaters'] == 1].sample(n=11500, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Tank'] == 1].sample(n=14000, random_state=42).index
+indices_to_drop = df[df['articleType_Tank'] == 1].sample(n=13500, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Tshirts'] == 1].sample(n=38500, random_state=42).index
+indices_to_drop = df[df['articleType_Tshirts'] == 1].sample(n=38000, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Tops'] == 1].sample(n=35000, random_state=42).index
+indices_to_drop = df[df['articleType_Tops'] == 1].sample(n=34500, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Leggings'] == 1].sample(n=3500, random_state=42).index
+indices_to_drop = df[df['articleType_Leggings'] == 1].sample(n=3000, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Jumpsuit'] == 1].sample(n=3500, random_state=42).index
+indices_to_drop = df[df['articleType_Jumpsuit'] == 1].sample(n=3000, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Hoodie'] == 1].sample(n=2500, random_state=42).index
+indices_to_drop = df[df['articleType_Hoodie'] == 1].sample(n=2000, random_state=42).index
 df = df.drop(indices_to_drop)
 
 unwanted_labels = [
@@ -166,7 +166,7 @@ df = df[(df.drop(columns=['id']).sum(axis=1) > 0)]
 label_counts = df.drop(columns=['id']).sum()
 print(label_counts)
 
-def preprocess_image(image_id, target_size=(224,224)):
+def preprocess_image(image_id, target_size=(300,300)):
     image_path = f'fashion-dataset/images/{image_id}.jpg'
     img = load_img(image_path, target_size=target_size, keep_aspect_ratio=True)
     img_array = img_to_array(img)
@@ -174,7 +174,7 @@ def preprocess_image(image_id, target_size=(224,224)):
     return img_array
 
 class DataGenerator(Sequence):
-    def __init__(self, image_ids, labels, batch_size=64, target_size=(224,224),augment=False, datagen=None, **kwargs):
+    def __init__(self, image_ids, labels, batch_size=64, target_size=(300,300),augment=False, datagen=None, **kwargs):
         super().__init__(**kwargs)
         self.image_ids = image_ids
         self.labels = labels
@@ -206,7 +206,7 @@ x_train, x_test, y_train, y_test = train_test_split(X,y, test_size=0.2, random_s
 train_generator = DataGenerator(x_train, y_train, batch_size=32)
 test_generator = DataGenerator(x_test, y_test, batch_size=32)
 
-base_model = ResNet101V2(weights='imagenet', include_top=False, input_shape=(224,224, 3))
+base_model = EfficientNetB3(weights='imagenet', include_top=False, input_shape=(300,300, 3))
 
 base_model.trainable = True
 
@@ -216,7 +216,7 @@ model = tf.keras.Sequential([
     tf.keras.layers.Dense(df.shape[1] - 1,activation='softmax')
 ])
 
-model.compile(optimizer=tf.keras.optimizers.Adam(),
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),
               loss='categorical_crossentropy',
               metrics=['accuracy']
               )
@@ -225,6 +225,7 @@ reduce_lr = ReduceLROnPlateau(
     monitor='val_loss',
     factor=0.1,
     patience=3,
+    min_lr=0.000001
 )
 
 history = model.fit(
@@ -235,4 +236,4 @@ history = model.fit(
     verbose=2
 )
 
-model.save('type_model_1.keras')
+model.save('type_model_2.keras')
