@@ -13,6 +13,19 @@ def create_db_connection():
     except mysql.connector.Error as e:
         print(f"Error: {e}")
         return None
+    
+def do_laundry():
+    connection = create_db_connection()
+    if connection is None:
+        raise HTTPException(status_code=500, detail="Failed to connect to the database")
+    cursor = connection.cursor(dictionary=True)
+    reset_usage = f"""
+    UPDATE inventory
+    SET Clean = 1, NumUses = 0;
+    """
+    cursor.execute(reset_usage)
+    return
+
 
 def fetch_outfit(weather_type, usage_type):
     connection = create_db_connection()
