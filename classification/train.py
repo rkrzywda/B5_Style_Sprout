@@ -8,7 +8,7 @@ from keras.utils import Sequence
 import sys
 import matplotlib.pyplot as plt
 from sklearn.utils import class_weight
-from keras.applications import EfficientNetB3
+from keras.applications import EfficientNetB4
 from keras._tf_keras.keras.callbacks import EarlyStopping,ReduceLROnPlateau
 
 early_stopping = EarlyStopping(
@@ -20,161 +20,28 @@ early_stopping = EarlyStopping(
 np.set_printoptions(threshold=sys.maxsize)
 pd.set_option('display.max_colwidth', None)
 pd.set_option('display.max_rows', None)
-df = pd.read_csv('fashion-dataset/styles.csv')
-df = df[df['masterCategory'] == 'Apparel']
+df = pd.read_csv('subset.csv')
 df = df[['id', 'articleType']] 
-df1 = pd.read_csv('archive/blazers.csv')
-df = pd.concat([df,df1])
-df2 = pd.read_csv('extra.csv')
-df = pd.concat([df,df2])
-num_drop = len(df)-(len(df)//64*64)
-df['articleType'] = df['articleType'].replace('Anorak', 'Jackets')
-df['articleType'] = df['articleType'].replace('Jacket', 'Jackets')
-df['articleType'] = df['articleType'].replace('Bomber', 'Jackets')
-df['articleType'] = df['articleType'].replace('Blazer', 'Blazers')
-df['articleType'] = df['articleType'].replace('Dress', 'Dresses')
-df['articleType'] = df['articleType'].replace('Tee', 'Tshirts')
-df['articleType'] = df['articleType'].replace('Blouse', 'Tops')
-df['articleType'] = df['articleType'].replace('Trunk', 'Trunks')
-df['articleType'] = df['articleType'].replace('Trunks', 'Shorts')
-df['articleType'] = df['articleType'].replace('Button-Down', 'Tops')
-df['articleType'] = df['articleType'].replace('Caftan', 'Dresses')
-df['articleType'] = df['articleType'].replace('Camisoles', 'Tank')
-df['articleType'] = df['articleType'].replace('Top', 'Tops')
-df['articleType'] = df['articleType'].replace('Chinos', 'Trousers')
-df['articleType'] = df['articleType'].replace('Coat', 'Jacket')
-df['articleType'] = df['articleType'].replace('Culottes', 'Trousers')
-df['articleType'] = df['articleType'].replace('Cutoffs', 'Shorts')
-df['articleType'] = df['articleType'].replace('Flannel', 'Tops')
-df['articleType'] = df['articleType'].replace('Henley', 'Tops')
-df['articleType'] = df['articleType'].replace('Jacket', 'Jackets')
-df['articleType'] = df['articleType'].replace('Parka', 'Jackets')
-df['articleType'] = df['articleType'].replace('Jeggings', 'Jeans')
-df['articleType'] = df['articleType'].replace('Joggers', 'Lounge Pants')
-df['articleType'] = df['articleType'].replace('Track Pants', 'Lounge Pants')
-df['articleType'] = df['articleType'].replace('Lounge Shorts', 'Shorts')
-df['articleType'] = df['articleType'].replace('Sweatshorts', 'Shorts')
-df['articleType'] = df['articleType'].replace('Onesie', 'Jumpsuit')
-df['articleType'] = df['articleType'].replace('Jersey', 'Tshirts')
-df['articleType'] = df['articleType'].replace('Turtleneck', 'Tops')
-df['articleType'] = df['articleType'].replace('Sweatshirts', 'Hoodie')
-df['articleType'] = df['articleType'].replace('Sweatpants', 'Lounge Pants')
-df['articleType'] = df['articleType'].replace('Kaftan', 'Lounge Pants')
-df['articleType'] = df['articleType'].replace('Peacoat', 'Jacket')
-df['articleType'] = df['articleType'].replace('Shirts', 'Tops')
-df['articleType'] = df['articleType'].replace('Skirt', 'Skirts')
-df['articleType'] = df['articleType'].replace('Jacket', 'Jackets')
-df['articleType'] = df['articleType'].replace('Nightdress', 'Dresses')
-df['articleType'] = df['articleType'].replace('Sweater', 'Sweaters')
-df['articleType'] = df['articleType'].replace('Rompers', 'Dresses')
-df['articleType'] = df['articleType'].replace('Romper', 'Dresses')
-
-df = df[['id', 'articleType']] 
-df.dropna(inplace=True)
-
-df = pd.get_dummies(df, columns=['articleType']).astype(int)
-indices_to_drop = df[df['articleType_Blazers'] == 1].sample(n=6000, random_state=42).index
-df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Cardigan'] == 1].sample(n=11500, random_state=42).index
-df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Dresses'] == 1].sample(n=78500, random_state=42).index
-df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Jackets'] == 1].sample(n=12000, random_state=42).index
-df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Jeans'] == 1].sample(n=6000, random_state=42).index
-df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Jumpsuit'] == 1].sample(n=500, random_state=42).index
-df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Lounge Pants'] == 1].sample(n=6000, random_state=42).index
-df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Shorts'] == 1].sample(n=21500, random_state=42).index
-df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Skirts'] == 1].sample(n=13100, random_state=42).index
-df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Sweaters'] == 1].sample(n=11500, random_state=42).index
-df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Tank'] == 1].sample(n=13500, random_state=42).index
-df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Tshirts'] == 1].sample(n=38000, random_state=42).index
-df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Tops'] == 1].sample(n=34500, random_state=42).index
-df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Leggings'] == 1].sample(n=3000, random_state=42).index
-df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Jumpsuit'] == 1].sample(n=3000, random_state=42).index
-df = df.drop(indices_to_drop)
-indices_to_drop = df[df['articleType_Hoodie'] == 1].sample(n=2000, random_state=42).index
-df = df.drop(indices_to_drop)
-
-unwanted_labels = [
-'articleType_Sarong',
-'articleType_Capris',
-'articleType_Poncho',
-'articleType_Kimono',
-'articleType_Kaftan',
-'articleType_Tunics',
-'articleType_Rain Trousers',
-'articleType_Jodhpurs',
-'articleType_Gauchos',
-'articleType_Halter',
-'articleType_Coverup',
-'articleType_Innerwear Vests',
-'articleType_Capris'
-'baseColour_Lime Green',
-'baseColour_Gold',
-'baseColour_Silver',
-'baseColour_Fluorescent Green',
-'articleType_Shrug',
-'articleType_Rain Jacket',
-'articleType_Baby Dolls',
-'articleType_Bath Robe',
-'articleType_Belts',
-'articleType_Booties',
-'articleType_Boxers',
-'articleType_Bra',
-'articleType_Briefs',
-'articleType_Churidar',
-'articleType_Kurta Sets',
-'articleType_Lehenga Choli',
-'articleType_Lounge Tshirts',
-'articleType_Nehru Jackets',
-'articleType_Patiala',
-'articleType_Robe',
-'articleType_Salwar',
-'articleType_Salwar and Dupatta',
-'articleType_Sarees',
-'articleType_Shapewear',
-'articleType_Stockings',
-'articleType_Suspenders',
-'articleType_Swimwear',
-'articleType_Tights',
-'usage_Ethnic',
-'usage_Party',
-'usage_Travel',
-'articleType_Dupatta',
-'usage_Smart Casual',
-'articleType_Kurtas',
-'articleType_Kurtis',
-'articleType_Clothing Set',
-'articleType_Waistcoat',
-'articleType_Tracksuits',
-'articleType_Night suits',
-'baseColour_Grey Melange'
-]
-df = df.drop(columns=unwanted_labels, errors='ignore')
-df = df[(df.drop(columns=['id']).sum(axis=1) > 0)]
+df = pd.get_dummies(df, columns=['articleType'])
 label_counts = df.drop(columns=['id']).sum()
 print(label_counts)
 
-def preprocess_image(image_id, target_size=(300,300)):
-    image_path = f'fashion-dataset/images/{image_id}.jpg'
+def preprocess_image(image_id, target_size=(380,380)):
+    image_path = f'subset/{image_id}'
     img = load_img(image_path, target_size=target_size, keep_aspect_ratio=True)
-    img_array = img_to_array(img)
-    img_array = img_array/255.0 
-    return img_array
+    img_array = img_to_array(img) / 255.0
+
+    img_tensor = tf.convert_to_tensor(img_array, dtype=tf.float32)
+    img_jittered = tf.image.random_brightness(img_tensor, max_delta=0.1)
+    img_jittered = tf.image.random_contrast(img_jittered, lower=0.9, upper=1.1)
+    img_jittered = tf.image.random_saturation(img_jittered, lower=0.9, upper=1.1)
+    img_jittered = tf.image.random_hue(img_jittered, max_delta=0.1)
+    img_normalized = tf.clip_by_value(img_jittered, 0.0, 1.0)
+
+    return img_normalized
 
 class DataGenerator(Sequence):
-    def __init__(self, image_ids, labels, batch_size=64, target_size=(300,300),augment=False, datagen=None, **kwargs):
+    def __init__(self, image_ids, labels, batch_size=64, target_size=(380,380),augment=False, datagen=None, **kwargs):
         super().__init__(**kwargs)
         self.image_ids = image_ids
         self.labels = labels
@@ -202,11 +69,16 @@ y = df.drop(columns=['id']).values
 
 x_train, x_test, y_train, y_test = train_test_split(X,y, test_size=0.2, random_state=42)
 
+datagen = ImageDataGenerator(
+    rotation_range=10,
+    horizontal_flip=True,
+    fill_mode='nearest',
+)
 
-train_generator = DataGenerator(x_train, y_train, batch_size=32)
-test_generator = DataGenerator(x_test, y_test, batch_size=32)
+train_generator = DataGenerator(x_train, y_train, batch_size=64, augment=True, datagen=datagen)
+test_generator = DataGenerator(x_test, y_test, batch_size=64)
 
-base_model = EfficientNetB3(weights='imagenet', include_top=False, input_shape=(300,300, 3))
+base_model = EfficientNetB4(weights='imagenet', include_top=False, input_shape=(380,380, 3))
 
 base_model.trainable = True
 
@@ -216,7 +88,7 @@ model = tf.keras.Sequential([
     tf.keras.layers.Dense(df.shape[1] - 1,activation='softmax')
 ])
 
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
               loss='categorical_crossentropy',
               metrics=['accuracy']
               )
@@ -233,7 +105,7 @@ history = model.fit(
     epochs=50,
     validation_data=test_generator,
     callbacks=[early_stopping, reduce_lr],
-    verbose=2
+    verbose=1
 )
 
-model.save('type_model_2.keras')
+model.save('type_model_3.keras')

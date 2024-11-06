@@ -5,3 +5,7 @@ backend/config.py
 camera/capstone_cv
 classification/background.png
 classification/test.py
+classification/image
+classification/subset
+*.csv
+*.txt
