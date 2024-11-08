@@ -75,6 +75,20 @@ def fetch_outfit(weather_type, usage_type):
         cursor.close()
         connection.close()
 
+def update_uses(uses):
+    connection = create_db_connection()
+    if connection is None:
+        raise HTTPException(status_code=500, detail="Failed to connect to the database")
+    try:
+        cursor = connection.cursor(dictionary=True)
+        return {}
+    except mysql.connector.Error as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Database query failed")
+    finally:
+        cursor.close()
+        connection.close()
+
 # API routes
 @app.get("/outfit/{weather_type}/{usage_type}")
 def get_outfit(weather_type: str, usage_type: str):
@@ -85,3 +99,10 @@ def get_outfit(weather_type: str, usage_type: str):
         raise HTTPException(status_code=400, detail="Invalid weather/usage type")
 
     return fetch_outfit(weather_type, usage_type)
+
+@app.post("/laundry/{uses}")
+def change_uses(uses: int):
+    if uses<=0:
+        raise HTTPException(status_code=400, detail="Invalid uses value")
+    return update_uses(uses)
+
