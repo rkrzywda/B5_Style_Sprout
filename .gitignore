@@ -9,3 +9,4 @@ classification/image
 classification/subset
 *.csv
 *.txt
+*.png

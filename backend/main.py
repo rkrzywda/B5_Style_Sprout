@@ -76,12 +76,18 @@ def fetch_outfit(weather_type, usage_type):
         connection.close()
 
 def update_uses(uses):
+    if uses<=0:
+        raise HTTPException(status_code=404, detail="Uses cannot be 0")
     connection = create_db_connection()
     if connection is None:
         raise HTTPException(status_code=500, detail="Failed to connect to the database")
     try:
         cursor = connection.cursor(dictionary=True)
-        return {}
+        update_uses = f"""
+        UPDATE preferences
+        SET Uses = {uses};
+        """
+        cursor.execute(update_uses)
     except mysql.connector.Error as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Database query failed")
