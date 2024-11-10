@@ -8,7 +8,7 @@ from keras.utils import Sequence
 import sys
 import matplotlib.pyplot as plt
 from sklearn.utils import class_weight
-from keras.applications import EfficientNetB4
+from keras.applications import ResNet152V2
 from keras._tf_keras.keras.callbacks import EarlyStopping,ReduceLROnPlateau
 
 early_stopping = EarlyStopping(
@@ -26,7 +26,7 @@ df = pd.get_dummies(df, columns=['articleType'])
 label_counts = df.drop(columns=['id']).sum()
 print(label_counts)
 
-def preprocess_image(image_id, target_size=(380,380)):
+def preprocess_image(image_id, target_size=(224,224)):
     image_path = f'subset/{image_id}'
     img = load_img(image_path, target_size=target_size, keep_aspect_ratio=True)
     img_array = img_to_array(img) / 255.0
@@ -41,7 +41,7 @@ def preprocess_image(image_id, target_size=(380,380)):
     return img_normalized
 
 class DataGenerator(Sequence):
-    def __init__(self, image_ids, labels, batch_size=64, target_size=(380,380),augment=False, datagen=None, **kwargs):
+    def __init__(self, image_ids, labels, batch_size=64, target_size=(224,224),augment=False, datagen=None, **kwargs):
         super().__init__(**kwargs)
         self.image_ids = image_ids
         self.labels = labels
@@ -78,7 +78,7 @@ datagen = ImageDataGenerator(
 train_generator = DataGenerator(x_train, y_train, batch_size=64, augment=True, datagen=datagen)
 test_generator = DataGenerator(x_test, y_test, batch_size=64)
 
-base_model = EfficientNetB4(weights='imagenet', include_top=False, input_shape=(380,380, 3))
+base_model = ResNet152V2(weights='imagenet', include_top=False, input_shape=(224,224, 3))
 
 base_model.trainable = True
 
@@ -108,4 +108,4 @@ history = model.fit(
     verbose=1
 )
 
-model.save('type_model_3.keras')
+model.save('type_model.keras')
