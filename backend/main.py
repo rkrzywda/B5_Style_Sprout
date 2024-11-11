@@ -18,13 +18,48 @@ def do_laundry():
     connection = create_db_connection()
     if connection is None:
         raise HTTPException(status_code=500, detail="Failed to connect to the database")
-    cursor = connection.cursor(dictionary=True)
-    reset_usage = f"""
-    UPDATE inventory
-    SET Clean = 1, NumUses = 0;
-    """
-    cursor.execute(reset_usage)
-    return
+    try:
+        cursor = connection.cursor(dictionary=True)
+        reset_usage = """
+        UPDATE inventory
+        SET Clean = 1, NumUses = 0;
+        """
+        cursor.execute(reset_usage)
+        connection.commit()
+    except mysql.connector.Error as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Database query failed")
+    finally:
+        cursor.close()
+        connection.close()
+
+def select_outfit(primary, secondary, item_id):
+    connection = create_db_connection()
+    if connection is None:
+        raise HTTPException(status_code=500, detail="Failed to connect to the database")
+    try:
+        cursor = connection.cursor(dictionary=True)
+        update_preferences = f"""
+        UPDATE user_preferences
+        SET uses = uses + 1
+        WHERE primary_color = {primary} AND secondary_color = {secondary}
+        """
+        cursor.execute(update_preferences)
+
+        update_usage = f"""
+        UPDATE inventory
+        SET NumUses = NumUses + 1
+        WHERE ItemID = {item_id}
+        """
+        cursor.execute(update_usage)
+        connection.commit()
+    except mysql.connector.Error as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Database query failed")
+    finally:
+        cursor.close()
+        connection.close()
+
 
 
 def fetch_outfit(weather_type, usage_type):
@@ -84,16 +119,19 @@ def update_uses(uses):
     try:
         cursor = connection.cursor(dictionary=True)
         update_uses = f"""
-        UPDATE preferences
-        SET Uses = {uses};
+        UPDATE settings
+        SET UsesBeforeDirty = {uses}
         """
         cursor.execute(update_uses)
+        connection.commit()
     except mysql.connector.Error as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Database query failed")
     finally:
         cursor.close()
         connection.close()
+
+
 
 # API routes
 @app.get("/outfit/{weather_type}/{usage_type}")
@@ -106,9 +144,16 @@ def get_outfit(weather_type: str, usage_type: str):
 
     return fetch_outfit(weather_type, usage_type)
 
-@app.post("/laundry/{uses}")
+@app.post("/laundry/update/{uses}")
 def change_uses(uses: int):
-    if uses<=0:
+    if uses<=0 or uses>100:
         raise HTTPException(status_code=400, detail="Invalid uses value")
     return update_uses(uses)
 
+@app.post("/select/{primary}/{secondary}/{id}")
+def outfit_db_update(id: int, primary: str, secondary: str):
+    return select_outfit(primary, secondary, id)
+
+@app.post("/laundry/reset")
+def reset_laundry():
+    return do_laundry()
