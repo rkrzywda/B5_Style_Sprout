@@ -20,16 +20,18 @@ early_stopping = EarlyStopping(
 np.set_printoptions(threshold=sys.maxsize)
 pd.set_option('display.max_colwidth', None)
 pd.set_option('display.max_rows', None)
-df = pd.read_csv('subset.csv')
-df = df[['id', 'articleType']] 
-df = pd.get_dummies(df, columns=['articleType'])
+df = pd.read_csv('type_subset.csv')
+df.dropna(inplace=True)
+
+df = pd.get_dummies(df, columns=['usage']).astype(int)
 label_counts = df.drop(columns=['id']).sum()
 print(label_counts)
 
 def preprocess_image(image_id, target_size=(224,224)):
-    image_path = f'subset/{image_id}'
+    image_path = f'fashion-dataset/images/{image_id}.jpg'
     img = load_img(image_path, target_size=target_size, keep_aspect_ratio=True)
-    img_array = img_to_array(img) / 255.0
+    img_array = img_to_array(img)
+    img_array = img_array/255.0 
 
     img_tensor = tf.convert_to_tensor(img_array, dtype=tf.float32)
     img_jittered = tf.image.random_brightness(img_tensor, max_delta=0.1)
@@ -37,11 +39,10 @@ def preprocess_image(image_id, target_size=(224,224)):
     img_jittered = tf.image.random_saturation(img_jittered, lower=0.9, upper=1.1)
     img_jittered = tf.image.random_hue(img_jittered, max_delta=0.1)
     img_normalized = tf.clip_by_value(img_jittered, 0.0, 1.0)
-
     return img_normalized
 
 class DataGenerator(Sequence):
-    def __init__(self, image_ids, labels, batch_size=64, target_size=(224,224),augment=False, datagen=None, **kwargs):
+    def __init__(self, image_ids, labels, batch_size=32, target_size=(224,224),augment=False, datagen=None, **kwargs):
         super().__init__(**kwargs)
         self.image_ids = image_ids
         self.labels = labels
@@ -69,14 +70,9 @@ y = df.drop(columns=['id']).values
 
 x_train, x_test, y_train, y_test = train_test_split(X,y, test_size=0.2, random_state=42)
 
-datagen = ImageDataGenerator(
-    rotation_range=10,
-    horizontal_flip=True,
-    fill_mode='nearest',
-)
 
-train_generator = DataGenerator(x_train, y_train, batch_size=64, augment=True, datagen=datagen)
-test_generator = DataGenerator(x_test, y_test, batch_size=64)
+train_generator = DataGenerator(x_train, y_train, batch_size=32)
+test_generator = DataGenerator(x_test, y_test, batch_size=32)
 
 base_model = ResNet152V2(weights='imagenet', include_top=False, input_shape=(224,224, 3))
 
@@ -90,7 +86,7 @@ model = tf.keras.Sequential([
 
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
               loss='categorical_crossentropy',
-              metrics=['accuracy']
+              metrics=['categorical_accuracy']
               )
 
 reduce_lr = ReduceLROnPlateau(
@@ -108,4 +104,4 @@ history = model.fit(
     verbose=1
 )
 
-model.save('type_model.keras')
+model.save('usage_model.keras')

@@ -17,6 +17,84 @@ from keras._tf_keras.keras.callbacks import EarlyStopping,ReduceLROnPlateau
 from tqdm import tqdm
 import os
 from PIL import Image, ImageOps
+import shutil
+np.set_printoptions(threshold=sys.maxsize)
+pd.set_option('display.max_colwidth', None)
+pd.set_option('display.max_rows', None)
+df = pd.read_csv('fashion-dataset/styles.csv')
+df = df[df['masterCategory'] == 'Apparel']
+df = df[['id', 'articleType', 'usage']] 
+df1 = pd.read_csv('archive/blazers.csv')
+df = pd.concat([df,df1])
+df2 = pd.read_csv('extra.csv')
+df = pd.concat([df,df2])
+num_drop = len(df)-(len(df)//64*64)
+df.loc[df['articleType'] == 'Blazer', 'usage'] = 'Formal'
+df.loc[df['articleType'] == 'Blazers', 'usage'] = 'Formal'
+df.loc[df['articleType'] == 'Blouse', 'usage'] = 'Formal'
+df.loc[df['articleType'] == 'Bomber', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Button-Down', 'usage'] = 'Formal'
+df.loc[df['articleType'] == 'Camisoles', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Chinos', 'usage'] = 'Formal'
+df.loc[df['articleType'] == 'Culottes', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Cutoffs', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Flannel', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Henley', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Hoodie', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Innerwear Vests', 'usage'] = 'Formal'
+df.loc[df['articleType'] == 'Jeans', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Jeggings', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Jersey', 'usage'] = 'Sports'
+df.loc[df['articleType'] == 'Joggers', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Leggings', 'usage'] = 'Sports'
+df.loc[df['articleType'] == 'Lounge Pants', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Lounge Shorts', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Lounge Tshirts', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Peacoat', 'usage'] = 'Formal'
+df.loc[df['articleType'] == 'Romper', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Shorts', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Sweatpants', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Sweatshirts', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Sweatshorts', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Tank', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Tee', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Track Pants', 'usage'] = 'Sports'
+df.loc[df['articleType'] == 'Tracksuits', 'usage'] = 'Sports'
+df.loc[df['articleType'] == 'Trousers', 'usage'] = 'Formal'
+df.loc[df['articleType'] == 'Trunk', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Trunks', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Tshirts', 'usage'] = 'Casual'
+df.loc[df['articleType'] == 'Waistcoat', 'usage'] = 'Formal'
+
+df = df[['id', 'usage']] 
+df.dropna(inplace=True)
+
+df = pd.get_dummies(df, columns=['usage']).astype(int)
+indices_to_drop = df[df['usage_Casual'] == 1].sample(n=113500, random_state=42).index
+df = df.drop(indices_to_drop)
+indices_to_drop = df[df['usage_Formal'] == 1].sample(n=27000, random_state=42).index
+df = df.drop(indices_to_drop)
+
+unwanted_labels = [
+'usage_Ethnic',
+'usage_Party',
+'usage_Travel',
+'usage_Smart Casual'
+]
+df = df.drop(columns=unwanted_labels, errors='ignore')
+label_counts = df.drop(columns=['id']).sum()
+print(label_counts)
+df = df[(df.drop(columns=['id']).sum(axis=1) > 0)]
+df['usage'] = df[['usage_Casual', 'usage_Formal', 'usage_Sports']].idxmax(axis=1)
+df = df[['id', 'usage']]
+df.to_csv('type_subset.csv', index=False)
+
+'''
+count=0
+for subdir, dirs, files in os.walk('fashion-dataset/images'):
+    for f in files:
+        count+=1
+print(count)
 
 np.set_printoptions(threshold=sys.maxsize)
 pd.set_option('display.max_colwidth', None)
@@ -197,8 +275,6 @@ for index, row in tqdm(df.iterrows(), total=len(df)):
     
 output_df = pd.DataFrame(output_data, columns=['id', 'articleType'])
 output_df.to_csv(output_csv, index=False)
-
-'''
 
 image_folder = 'fashion-dataset/images'
 output_folder = 'subset'
