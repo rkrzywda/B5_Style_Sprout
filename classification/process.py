@@ -18,6 +18,131 @@ from tqdm import tqdm
 import os
 from PIL import Image, ImageOps
 import shutil
+
+np.set_printoptions(threshold=sys.maxsize)
+pd.set_option('display.max_colwidth', None)
+pd.set_option('display.max_rows', None)
+df = pd.read_csv('fashion-dataset/styles.csv')
+df = df[df['masterCategory'] == 'Apparel']
+df = df[['id', 'articleType', 'baseColour', 'usage']] 
+df1 = pd.read_csv('archive/blazers.csv')
+df1.dropna(inplace=True)
+df = pd.concat([df,df1])
+df.dropna(inplace=True)
+num_drop = len(df)-(len(df)//64*64)
+df['baseColour'] = df['baseColour'].replace('Off White', 'Beige')
+df['baseColour'] = df['baseColour'].replace('Cream', 'Beige')
+df['baseColour'] = df['baseColour'].replace('Khaki', 'Beige')
+df['baseColour'] = df['baseColour'].replace('Charcoal', 'Black')
+df['baseColour'] = df['baseColour'].replace('Olive', 'Green')
+df['baseColour'] = df['baseColour'].replace('Lavender', 'Purple')
+df['baseColour'] = df['baseColour'].replace('Mauve', 'Purple')
+df['baseColour'] = df['baseColour'].replace('Maroon', 'Red')
+df['baseColour'] = df['baseColour'].replace('Burgundy', 'Red')
+df['baseColour'] = df['baseColour'].replace('Magenta', 'Pink')
+df['baseColour'] = df['baseColour'].replace('Peach', 'Orange')
+df['baseColour'] = df['baseColour'].replace('Coffee Brown', 'Brown')
+df['baseColour'] = df['baseColour'].replace('Mushroom Brown', 'Brown')
+df['baseColour'] = df['baseColour'].replace('Mustard', 'Yellow')
+df['baseColour'] = df['baseColour'].replace('Nude', 'Beige')
+df['baseColour'] = df['baseColour'].replace('Tan', 'Beige')
+df['baseColour'] = df['baseColour'].replace('Taupe', 'Beige')
+df['baseColour'] = df['baseColour'].replace('Skin', 'Beige')
+df['baseColour'] = df['baseColour'].replace('Rose', 'Pink')
+df['baseColour'] = df['baseColour'].replace('Rust', 'Red')
+df['baseColour'] = df['baseColour'].replace('Sea Green', 'Teal')
+df['baseColour'] = df['baseColour'].replace('Turquoise Blue', 'Teal')
+df['baseColour'] = df['baseColour'].replace('Grey Melange', 'Grey')
+df['baseColour'] = df['baseColour'].replace('Lime Green', 'Green')
+df['baseColour'] = df['baseColour'].replace('Fluorescent Green', 'Green')
+df['baseColour'] = df['baseColour'].replace('Teal', 'Blue')
+df['baseColour'] = df['baseColour'].replace('Navy Blue', 'Blue')
+
+unwanted_labels = [
+'Belts',
+'Booties',
+'Boxers',
+'Bra',
+'Briefs',
+'Shapewear',
+'Stockings',
+'Suspenders',
+'Swimwear',
+'Tights',
+]
+df = df[~df['articleType'].isin(unwanted_labels)]
+
+df = df[['id', 'baseColour']] 
+
+df = pd.get_dummies(df, columns=['baseColour']).astype(int)
+indices_to_drop = df[df['baseColour_Beige'] == 1].sample(n=276, random_state=42).index
+df = df.drop(indices_to_drop)
+indices_to_drop = df[df['baseColour_Black'] == 1].sample(n=2544, random_state=42).index
+df = df.drop(indices_to_drop)
+indices_to_drop = df[df['baseColour_Blue'] == 1].sample(n=4144, random_state=42).index
+df = df.drop(indices_to_drop)
+indices_to_drop = df[df['baseColour_Brown'] == 1].sample(n=35, random_state=42).index
+df = df.drop(indices_to_drop)
+indices_to_drop = df[df['baseColour_Green'] == 1].sample(n=1121, random_state=42).index
+df = df.drop(indices_to_drop)
+indices_to_drop = df[df['baseColour_Grey'] == 1].sample(n=1093, random_state=42).index
+df = df.drop(indices_to_drop)
+indices_to_drop = df[df['baseColour_Pink'] == 1].sample(n=603, random_state=42).index
+df = df.drop(indices_to_drop)
+indices_to_drop = df[df['baseColour_Purple'] == 1].sample(n=543, random_state=42).index
+df = df.drop(indices_to_drop)
+indices_to_drop = df[df['baseColour_Red'] == 1].sample(n=1219, random_state=42).index
+df = df.drop(indices_to_drop)
+indices_to_drop = df[df['baseColour_White'] == 1].sample(n=2065, random_state=42).index
+df = df.drop(indices_to_drop)
+indices_to_drop = df[df['baseColour_Yellow'] == 1].sample(n=116, random_state=42).index
+df = df.drop(indices_to_drop)
+
+
+unwanted_labels = [
+'baseColour_Multi',
+'baseColour_Gold',
+'baseColour_Silver',
+]
+df = df.drop(columns=unwanted_labels, errors='ignore')
+label_counts = df.drop(columns=['id']).sum()
+print(label_counts)
+
+df.to_csv('color_subset.csv', index=False)
+
+image_folder = 'fashion-dataset/images'
+output_folder = 'color_subset'
+output_data = []
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+if True:
+    for index, row in tqdm(df.iterrows(), total=len(df)):
+        img_id = row['id']
+        label = row.drop('id').idxmax()
+
+        img_path = os.path.join(image_folder, f'{img_id}.jpg')
+        img = load_img(img_path)
+        width, height = img.size
+
+        if width > height:
+            padding = (0, (width - height) // 2, 0, width - height - (width - height) // 2)
+        else:
+            padding = ((height - width) // 2, 0, height - width - (height - width) // 2, 0)
+        
+        img = ImageOps.expand(img, padding, fill=img.getpixel((0, 0)))
+        
+        img = img.resize((500, 500), Image.LANCZOS)
+
+        new_img_path = os.path.join(output_folder, f'{img_id}.jpg')
+        img.save(new_img_path)
+
+        output_data.append([new_img_path, label])
+
+output_csv = 'color_subset.csv'
+output_df = pd.DataFrame(output_data, columns=['id', 'baseColour'])
+output_df.to_csv(output_csv, index=False)
+
+'''
 np.set_printoptions(threshold=sys.maxsize)
 pd.set_option('display.max_colwidth', None)
 pd.set_option('display.max_rows', None)
@@ -67,13 +192,13 @@ df.loc[df['articleType'] == 'Tshirts', 'usage'] = 'Casual'
 df.loc[df['articleType'] == 'Waistcoat', 'usage'] = 'Formal'
 
 df = df[['id', 'usage']] 
+df['usage'] = df['usage'].replace('Sports', 'Casual')
 df.dropna(inplace=True)
 
 df = pd.get_dummies(df, columns=['usage']).astype(int)
-indices_to_drop = df[df['usage_Casual'] == 1].sample(n=113500, random_state=42).index
+indices_to_drop = df[df['usage_Casual'] == 1].sample(n=90000, random_state=42).index
 df = df.drop(indices_to_drop)
-indices_to_drop = df[df['usage_Formal'] == 1].sample(n=27000, random_state=42).index
-df = df.drop(indices_to_drop)
+
 
 unwanted_labels = [
 'usage_Ethnic',
@@ -85,11 +210,11 @@ df = df.drop(columns=unwanted_labels, errors='ignore')
 label_counts = df.drop(columns=['id']).sum()
 print(label_counts)
 df = df[(df.drop(columns=['id']).sum(axis=1) > 0)]
-df['usage'] = df[['usage_Casual', 'usage_Formal', 'usage_Sports']].idxmax(axis=1)
+df['usage'] = df[['usage_Casual', 'usage_Formal']].idxmax(axis=1)
 df = df[['id', 'usage']]
 df.to_csv('type_subset.csv', index=False)
 
-'''
+
 count=0
 for subdir, dirs, files in os.walk('fashion-dataset/images'):
     for f in files:

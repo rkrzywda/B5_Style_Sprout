@@ -42,7 +42,7 @@ def preprocess_image(image_id, target_size=(224,224)):
     return img_normalized
 
 class DataGenerator(Sequence):
-    def __init__(self, image_ids, labels, batch_size=32, target_size=(224,224),augment=False, datagen=None, **kwargs):
+    def __init__(self, image_ids, labels, batch_size=64, target_size=(224,224),augment=False, datagen=None, **kwargs):
         super().__init__(**kwargs)
         self.image_ids = image_ids
         self.labels = labels
@@ -66,13 +66,18 @@ class DataGenerator(Sequence):
 
 
 X = np.stack(df['id'].values)
-y = df.drop(columns=['id']).values
+y = df['usage_Formal'].values
 
 x_train, x_test, y_train, y_test = train_test_split(X,y, test_size=0.2, random_state=42)
 
+datagen = ImageDataGenerator(
+    rotation_range=10,
+    horizontal_flip=True,
+    fill_mode='nearest',
+)
 
-train_generator = DataGenerator(x_train, y_train, batch_size=32)
-test_generator = DataGenerator(x_test, y_test, batch_size=32)
+train_generator = DataGenerator(x_train, y_train, batch_size=64, augment=True, datagen=datagen)
+test_generator = DataGenerator(x_test, y_test, batch_size=64)
 
 base_model = ResNet152V2(weights='imagenet', include_top=False, input_shape=(224,224, 3))
 
@@ -81,12 +86,12 @@ base_model.trainable = True
 model = tf.keras.Sequential([
     base_model,
     tf.keras.layers.Flatten(),
-    tf.keras.layers.Dense(df.shape[1] - 1,activation='softmax')
+    tf.keras.layers.Dense(1,activation='sigmoid')
 ])
 
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-              loss='categorical_crossentropy',
-              metrics=['categorical_accuracy']
+              loss='binary_crossentropy',
+              metrics=['binary_accuracy']
               )
 
 reduce_lr = ReduceLROnPlateau(
@@ -104,4 +109,4 @@ history = model.fit(
     verbose=1
 )
 
-model.save('usage_model.keras')
+model.save('usage_model1.keras')
