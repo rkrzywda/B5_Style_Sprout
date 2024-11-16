@@ -11,6 +11,35 @@ import time
 import requests
 from config import db_config 
  
+type_classes = ['articleType_Blazers',
+'articleType_Cardigan',
+'articleType_Dresses',
+'articleType_Hoodie',
+'articleType_Jackets',
+'articleType_Jeans',
+'articleType_Jumpsuit',
+'articleType_Leggings',
+'articleType_Lounge Pants',
+'articleType_Shorts',
+'articleType_Skirts',
+'articleType_Sweaters',
+'articleType_Tank',
+'articleType_Tops',
+'articleType_Trousers',
+'articleType_Tshirts']
+color_classes = ['baseColour_Beige',
+'baseColour_Black',
+'baseColour_Blue',
+'baseColour_Brown',
+'baseColour_Green',
+'baseColour_Grey',
+'baseColour_Orange',
+'baseColour_Pink',
+'baseColour_Purple',
+'baseColour_Red',
+'baseColour_White',
+'baseColour_Yellow'
+]
 
 # type_model = tf.keras.models.load_model('type_model.keras')
 # colour_model = tf.keras.models.load_model('colour_model.keras')
@@ -73,21 +102,11 @@ def feedIntoModel(img):
     # input_image = np.expand_dims(image_normalized, axis=0)
 
     # type_predictions = type_model.predict(input_image)
-    # threshold = 0.5
-    # predicted_classes = (type_predictions > threshold).astype(int)
-    # print("Predictions:", predicted_classes)
-    # # one hot encoded array like [0 0 1] where 1 indicates the class that it is
-    # # if classes were [shirt pants jacket] then this would be a jacket
-
+    # predicted_type = type_classes[np.argmax(type_predictions)]
+    # string indicating the predicted clothing type
 
     # colour_predictions = colour_model.predict(input_image)
-    # predicted_classes = (colour_predictions > threshold).astype(int)
-    # print("Predictions:", predicted_classes)
-
-    # usage_predictions = usage_model.predict(input_image)
-    # predicted_classes = (usage_predictions > threshold).astype(int)
-    # print("Predictions:", predicted_classes)
-    #return predicted_classes
+    # predicted_color = color_classes[np.argmax(color_predictions)]
     pass
 
 #below is where opencv-python is stored on the virtual environemnt capstone_cv
