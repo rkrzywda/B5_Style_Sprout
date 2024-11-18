@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 import mysql.connector
 import random
 from config import db_config  
+from pydantic import BaseModel
 
 app = FastAPI()
 
@@ -190,24 +191,30 @@ def outfit_db_update(item_id1: int, item_id2: int, primary: str, secondary: str)
 def reset_laundry():
     return do_laundry()
 
-@app.post("/clothing/info")
-def send_clothing_info():
-    # get info from jetson however idk how u send it to here
+#information about the outfit to store in the database
+class Outfit_Info(BaseModel):
+    clothingType: str
+    color: str
+    usageType: str
 
-    # (you dont need to do any of the connection stuff to database just ignore
-    # create_db_connection or any sql stuff)
+# POST request used by the Xavier NX to send information about the classified outfit to the database
+@app.post("/outfit/info")
+def change_uses(outfit_info: Outfit_Info):
+    if (outfit_info.clothingType in ('Shorts')):
+       season = 'Summer'
+    elif (outfit_info.clothingType in ('Sweatshirts')):
+        season = 'Winter'
+    else:
+        season = "Spring"
+   
+    outfit_item_info = {
+        "clothingType": outfit_info.clothingType,
+        "color": outfit_info.color,
+        "season": season,
+        "usageType": outfit_info.usageType,
+    }
 
-    # put the info into this format
-    '''
-    clothing_item_info = {
-                        "clothingtype": "", 
-                        "color": "", 
-                        "season": "",
-                        "usagetype": ""
-                        }
-    return clothing_item_info
+    add_item_to_db(outfit_item_info)
 
-    When you want to view the info on ur browser do
-    http://ipaddress:8000/clothing/info
+    return "Successful"
 
-    '''
