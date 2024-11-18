@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 import mysql.connector
 import random
 from config import db_config  
@@ -100,9 +101,31 @@ def get_outfit(weather_type: str, usage_type: str):
 
     return fetch_outfit(weather_type, usage_type)
 
-@app.post("/laundry/{uses}")
+@app.post("/clothing/info")
 def change_uses(uses: int):
     if uses<=0:
         raise HTTPException(status_code=400, detail="Invalid uses value")
     return update_uses(uses)
 
+
+#information about the outfit to store in the database
+class Outfit_Info(BaseModel):
+    clothingType: str
+    color: str
+    season: str
+    usageType: str
+
+#POST request used by the Xavier NX to send information about the classified outfit to the database
+@app.post("/outfit/info")
+def change_uses(outfit_info: Outfit_Info):
+   
+   outfit_item_info = {
+       "clothingType": outfit_info.clothingType,
+       "color": outfit_info.color,
+       "season": outfit_info.season,
+       "usageType": outfit_info.usageType,
+   }
+   return outfit_item_info
+
+# view above post request on browser with
+# http://ipaddress:8000/outfit/info
