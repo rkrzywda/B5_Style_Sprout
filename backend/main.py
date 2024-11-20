@@ -3,6 +3,10 @@ import mysql.connector
 import random
 from config import db_config  
 from pydantic import BaseModel
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -40,6 +44,19 @@ def select_outfit(primary, secondary, item_id1, item_id2):
         raise HTTPException(status_code=500, detail="Failed to connect to the database")
     try:
         cursor = connection.cursor(dictionary=True)
+        check_colors = f"""
+        SELECT EXISTS (
+            SELECT 1
+            FROM user_preferences
+            WHERE primary_color = '{primary}' AND secondary_color = '{secondary}'
+        ) AS exists_flag;
+        """
+        cursor.execute(check_colors)
+        exists = cursor.fetchall()
+        
+        if not exists[0]['exists_flag']:
+            primary, secondary = secondary, primary
+
         update_preferences = f"""
         UPDATE user_preferences
         SET uses = uses + 1
@@ -53,6 +70,15 @@ def select_outfit(primary, secondary, item_id1, item_id2):
         WHERE ItemID = {item_id1} OR ItemID = {item_id2}
         """
         cursor.execute(update_usage)
+
+        update_clean_status = f"""
+        UPDATE inventory
+        JOIN settings ON settings.ID = 1
+        SET Clean = 0
+        WHERE NumUses >= settings.UsesBeforeDirty;
+        """
+        cursor.execute(update_clean_status)
+
         connection.commit()
     except mysql.connector.Error as e:
         print(f"Error: {e}")
@@ -191,7 +217,7 @@ def outfit_db_update(item_id1: int, item_id2: int, primary: str, secondary: str)
 def reset_laundry():
     return do_laundry()
 
-#information about the outfit to store in the database
+# information about the outfit to store in the database
 class Outfit_Info(BaseModel):
     clothingType: str
     color: str
