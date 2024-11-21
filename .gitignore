@@ -12,3 +12,4 @@ classification/color_subset
 *.txt
 *.png
 *.jpg
+*.h5

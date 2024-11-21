@@ -8,19 +8,19 @@ from keras.utils import Sequence
 import sys
 import matplotlib.pyplot as plt
 from sklearn.utils import class_weight
-from keras.applications import ResNet152V2
+from keras.applications import ResNet50V2
 from keras._tf_keras.keras.callbacks import EarlyStopping,ReduceLROnPlateau
 
 early_stopping = EarlyStopping(
     monitor='val_loss',
-    patience=5,
+    patience=15,
     restore_best_weights=True 
 )
 
 np.set_printoptions(threshold=sys.maxsize)
 pd.set_option('display.max_colwidth', None)
 pd.set_option('display.max_rows', None)
-df = pd.read_csv('type_subset.csv')
+df = pd.read_csv('usage_subset.csv')
 df.dropna(inplace=True)
 
 df = pd.get_dummies(df, columns=['usage']).astype(int)
@@ -28,7 +28,7 @@ label_counts = df.drop(columns=['id']).sum()
 print(label_counts)
 
 def preprocess_image(image_id, target_size=(224,224)):
-    image_path = f'fashion-dataset/images/{image_id}.jpg'
+    image_path = f'usage_subset/{image_id}.jpg'
     img = load_img(image_path, target_size=target_size, keep_aspect_ratio=True)
     img_array = img_to_array(img)
     img_array = img_array/255.0 
@@ -79,7 +79,7 @@ datagen = ImageDataGenerator(
 train_generator = DataGenerator(x_train, y_train, batch_size=64, augment=True, datagen=datagen)
 test_generator = DataGenerator(x_test, y_test, batch_size=64)
 
-base_model = ResNet152V2(weights='imagenet', include_top=False, input_shape=(224,224, 3))
+base_model = ResNet50V2(weights='imagenet', include_top=False, input_shape=(224,224, 3))
 
 base_model.trainable = True
 
@@ -103,10 +103,10 @@ reduce_lr = ReduceLROnPlateau(
 
 history = model.fit(
     train_generator, 
-    epochs=50,
+    epochs=100,
     validation_data=test_generator,
     callbacks=[early_stopping, reduce_lr],
     verbose=1
 )
 
-model.save('usage_model1.keras')
+model.save('usage_model_50_2.keras')

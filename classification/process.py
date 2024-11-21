@@ -24,6 +24,119 @@ pd.set_option('display.max_colwidth', None)
 pd.set_option('display.max_rows', None)
 df = pd.read_csv('fashion-dataset/styles.csv')
 df = df[df['masterCategory'] == 'Apparel']
+df1 = pd.read_csv('archive/blazers.csv')
+df = pd.concat([df,df1])
+df2 = pd.read_csv('extra.csv')
+df = pd.concat([df,df2])
+df = df[['id', 'articleType', 'usage']] 
+df['usage'] = df['usage'].replace('Sports', 'Casual')
+df['articleType'] = df['articleType'].replace('Anorak', 'Jackets')
+df['articleType'] = df['articleType'].replace('Jacket', 'Jackets')
+df['articleType'] = df['articleType'].replace('Bomber', 'Jackets')
+df['articleType'] = df['articleType'].replace('Blazer', 'Blazers')
+df['articleType'] = df['articleType'].replace('Dress', 'Dresses')
+df['articleType'] = df['articleType'].replace('Tee', 'Tshirts')
+df['articleType'] = df['articleType'].replace('Blouse', 'Tops')
+df['articleType'] = df['articleType'].replace('Trunk', 'Trunks')
+df['articleType'] = df['articleType'].replace('Trunks', 'Shorts')
+df['articleType'] = df['articleType'].replace('Button-Down', 'Tops')
+df['articleType'] = df['articleType'].replace('Caftan', 'Dresses')
+df['articleType'] = df['articleType'].replace('Camisoles', 'Tank')
+df['articleType'] = df['articleType'].replace('Top', 'Tops')
+df['articleType'] = df['articleType'].replace('Chinos', 'Trousers')
+df['articleType'] = df['articleType'].replace('Coat', 'Jacket')
+df['articleType'] = df['articleType'].replace('Culottes', 'Trousers')
+df['articleType'] = df['articleType'].replace('Cutoffs', 'Shorts')
+df['articleType'] = df['articleType'].replace('Flannel', 'Tops')
+df['articleType'] = df['articleType'].replace('Henley', 'Tops')
+df['articleType'] = df['articleType'].replace('Jacket', 'Jackets')
+df['articleType'] = df['articleType'].replace('Parka', 'Jackets')
+df['articleType'] = df['articleType'].replace('Jeggings', 'Jeans')
+df['articleType'] = df['articleType'].replace('Joggers', 'Lounge Pants')
+df['articleType'] = df['articleType'].replace('Track Pants', 'Lounge Pants')
+df['articleType'] = df['articleType'].replace('Lounge Shorts', 'Shorts')
+df['articleType'] = df['articleType'].replace('Sweatshorts', 'Shorts')
+df['articleType'] = df['articleType'].replace('Onesie', 'Jumpsuit')
+df['articleType'] = df['articleType'].replace('Jersey', 'Tshirts')
+df['articleType'] = df['articleType'].replace('Turtleneck', 'Tops')
+df['articleType'] = df['articleType'].replace('Sweatshirts', 'Hoodie')
+df['articleType'] = df['articleType'].replace('Sweatpants', 'Lounge Pants')
+df['articleType'] = df['articleType'].replace('Kaftan', 'Lounge Pants')
+df['articleType'] = df['articleType'].replace('Peacoat', 'Jacket')
+df['articleType'] = df['articleType'].replace('Shirts', 'Tops')
+df['articleType'] = df['articleType'].replace('Skirt', 'Skirts')
+df['articleType'] = df['articleType'].replace('Jacket', 'Jackets')
+df['articleType'] = df['articleType'].replace('Nightdress', 'Dresses')
+df['articleType'] = df['articleType'].replace('Sweater', 'Sweaters')
+df['articleType'] = df['articleType'].replace('Rompers', 'Dresses')
+df['articleType'] = df['articleType'].replace('Romper', 'Dresses')
+df = df[df['articleType'].isin(['Trousers'])]
+df = df[df.isna().any(axis=1)]
+
+seen = pd.read_csv('usage_subset.csv')
+#id_set = set(seen['id'])
+#seen.fillna('Formal', inplace=True)
+#seen.to_csv('usage_subset.csv', index=False)
+#df = df.reset_index(drop=True)
+#random_indices = df.sample(n=200).index
+
+#for i in random_indices:
+    #row = df.iloc[i]
+    #if row['id'] not in id_set:
+        #print(row['id'])
+
+if False:
+    for index, row in df.iterrows():
+        name = row['id']
+        if name not in id_set:
+            plt.figure()
+            img = load_img(f'fashion-dataset/images/{name}.jpg', keep_aspect_ratio=True)
+            img_array = img_to_array(img)
+            img_array = img_array/255.0 
+            plt.imshow(img_array)
+            print(name)
+            plt.show()
+
+
+if True:
+    image_folder = 'fashion-dataset/images'
+    output_folder = 'usage_subset'
+    output_data = []
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+    if True:
+        for index, row in tqdm(seen.iterrows(), total=len(seen)):
+            img_id = row['id']
+            label = row.drop('id').idxmax()
+
+            img_path = os.path.join(image_folder, f'{img_id}.jpg')
+            img = load_img(img_path)
+            width, height = img.size
+
+            if width > height:
+                padding = (0, (width - height) // 2, 0, width - height - (width - height) // 2)
+            else:
+                padding = ((height - width) // 2, 0, height - width - (height - width) // 2, 0)
+            
+            img = ImageOps.expand(img, padding, fill=img.getpixel((0, 0)))
+            
+            img = img.resize((500, 500), Image.LANCZOS)
+
+            new_img_path = os.path.join(output_folder, f'{img_id}.jpg')
+            img.save(new_img_path)
+
+            output_data.append([new_img_path, label])
+
+    #output_csv = 'usage_subset.csv'
+    #output_df = pd.DataFrame(output_data, columns=['id', 'usage'])
+    #output_df.to_csv(output_csv, index=False)
+
+'''
+np.set_printoptions(threshold=sys.maxsize)
+pd.set_option('display.max_colwidth', None)
+pd.set_option('display.max_rows', None)
+df = pd.read_csv('fashion-dataset/styles.csv')
+df = df[df['masterCategory'] == 'Apparel']
 df = df[['id', 'articleType', 'baseColour', 'usage']] 
 df1 = pd.read_csv('archive/blazers.csv')
 df1.dropna(inplace=True)
@@ -142,73 +255,6 @@ output_csv = 'color_subset.csv'
 output_df = pd.DataFrame(output_data, columns=['id', 'baseColour'])
 output_df.to_csv(output_csv, index=False)
 
-'''
-np.set_printoptions(threshold=sys.maxsize)
-pd.set_option('display.max_colwidth', None)
-pd.set_option('display.max_rows', None)
-df = pd.read_csv('fashion-dataset/styles.csv')
-df = df[df['masterCategory'] == 'Apparel']
-df = df[['id', 'articleType', 'usage']] 
-df1 = pd.read_csv('archive/blazers.csv')
-df = pd.concat([df,df1])
-df2 = pd.read_csv('extra.csv')
-df = pd.concat([df,df2])
-num_drop = len(df)-(len(df)//64*64)
-df.loc[df['articleType'] == 'Blazer', 'usage'] = 'Formal'
-df.loc[df['articleType'] == 'Blazers', 'usage'] = 'Formal'
-df.loc[df['articleType'] == 'Blouse', 'usage'] = 'Formal'
-df.loc[df['articleType'] == 'Bomber', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Button-Down', 'usage'] = 'Formal'
-df.loc[df['articleType'] == 'Camisoles', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Chinos', 'usage'] = 'Formal'
-df.loc[df['articleType'] == 'Culottes', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Cutoffs', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Flannel', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Henley', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Hoodie', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Innerwear Vests', 'usage'] = 'Formal'
-df.loc[df['articleType'] == 'Jeans', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Jeggings', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Jersey', 'usage'] = 'Sports'
-df.loc[df['articleType'] == 'Joggers', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Leggings', 'usage'] = 'Sports'
-df.loc[df['articleType'] == 'Lounge Pants', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Lounge Shorts', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Lounge Tshirts', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Peacoat', 'usage'] = 'Formal'
-df.loc[df['articleType'] == 'Romper', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Shorts', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Sweatpants', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Sweatshirts', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Sweatshorts', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Tank', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Tee', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Track Pants', 'usage'] = 'Sports'
-df.loc[df['articleType'] == 'Tracksuits', 'usage'] = 'Sports'
-df.loc[df['articleType'] == 'Trousers', 'usage'] = 'Formal'
-df.loc[df['articleType'] == 'Trunk', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Trunks', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Tshirts', 'usage'] = 'Casual'
-df.loc[df['articleType'] == 'Waistcoat', 'usage'] = 'Formal'
-
-df = df[['id', 'usage']] 
-df['usage'] = df['usage'].replace('Sports', 'Casual')
-df.dropna(inplace=True)
-
-df = pd.get_dummies(df, columns=['usage']).astype(int)
-indices_to_drop = df[df['usage_Casual'] == 1].sample(n=90000, random_state=42).index
-df = df.drop(indices_to_drop)
-
-
-unwanted_labels = [
-'usage_Ethnic',
-'usage_Party',
-'usage_Travel',
-'usage_Smart Casual'
-]
-df = df.drop(columns=unwanted_labels, errors='ignore')
-label_counts = df.drop(columns=['id']).sum()
-print(label_counts)
 df = df[(df.drop(columns=['id']).sum(axis=1) > 0)]
 df['usage'] = df[['usage_Casual', 'usage_Formal']].idxmax(axis=1)
 df = df[['id', 'usage']]
