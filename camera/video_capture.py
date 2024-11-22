@@ -11,34 +11,34 @@ import time
 import requests
 from config import db_config 
  
-type_classes = ['articleType_Blazers',
-'articleType_Cardigan',
-'articleType_Dresses',
-'articleType_Hoodie',
-'articleType_Jackets',
-'articleType_Jeans',
-'articleType_Jumpsuit',
-'articleType_Leggings',
-'articleType_Lounge Pants',
-'articleType_Shorts',
-'articleType_Skirts',
-'articleType_Sweaters',
-'articleType_Tank',
-'articleType_Tops',
-'articleType_Trousers',
-'articleType_Tshirts']
-color_classes = ['baseColour_Beige',
-'baseColour_Black',
-'baseColour_Blue',
-'baseColour_Brown',
-'baseColour_Green',
-'baseColour_Grey',
-'baseColour_Orange',
-'baseColour_Pink',
-'baseColour_Purple',
-'baseColour_Red',
-'baseColour_White',
-'baseColour_Yellow'
+type_classes = ['Blazers',
+'Cardigan',
+'Dresses',
+'Hoodie',
+'Jackets',
+'Jeans',
+'Jumpsuit',
+'Leggings',
+'Lounge Pants',
+'Shorts',
+'Skirts',
+'Sweaters',
+'Tank',
+'Tops',
+'Trousers',
+'Tshirts']
+color_classes = ['Beige',
+'Black',
+'Blue',
+'Brown',
+'Green',
+'Grey',
+'Orange',
+'Pink',
+'Purple',
+'Red',
+'White',
+'Yellow'
 ]
 
 # type_model = tf.keras.models.load_model('type_model.keras')
@@ -108,6 +108,26 @@ def feedIntoModel(img):
     # colour_predictions = colour_model.predict(input_image)
     # predicted_color = color_classes[np.argmax(color_predictions)]
     pass
+
+'''
+def feedIntoModel(img):
+    image_resized = cv2.resize(img, (224, 224))
+    image_normalized = image_resized / 255.0
+    input_image = np.expand_dims(image_normalized, axis=0)
+
+    type_predictions = type_model.predict(input_image)
+    predicted_type = type_classes[np.argmax(type_predictions)]
+
+    color_predictions = colour_model.predict(input_image)
+    predicted_color = color_classes[np.argmax(color_predictions)]
+
+    predicted_usage = 'Casual'
+    if predicted_type in {'Dresses', 'Skirts', 'Tops', 'Trousers', 'Jackets'}:
+        usage_predictions = usage_model.predict(input_image, verbose=0)[0]
+        predicted_usage = usage_predictions[0]>0.5
+    elif predicted_type in {'Blazers'}:
+        predicted_usage = 'Formal'
+'''
 
 #below is where opencv-python is stored on the virtual environemnt capstone_cv
 # /home/style_sprout/Desktop/B5_Style_Sprout/camera/capstone_cv/lib/python3.8/site-packages
