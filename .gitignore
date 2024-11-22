@@ -6,6 +6,10 @@ camera/capstone_cv
 classification/background.png
 classification/test.py
 classification/image
-classification/subset
+classification/type_subset
+classification/color_subset
 *.csv
 *.txt
+*.png
+*.jpg
+*.h5
