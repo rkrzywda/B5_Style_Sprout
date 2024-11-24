@@ -10,6 +10,145 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+OVERWEAR_THRESHOLD = 10
+
+def get_temperature(location):
+    # TODO: add a weather api call here based on location
+    if location == "Pittsburgh":
+        return "neutral" # options are cold, neutral, hot
+    
+    
+
+# put one piece in top and have bottom empty
+ 
+# cold
+# jacket
+# sweater, cardigan, blazer, hoodie
+# top/bottom or one piece
+# no shorts/tank tops
+
+# neutral
+# can have sweater, cardiagn, blazer, hoodie
+# no jacket
+
+# hot
+# no sweater/jacket etc (no blazer)
+
+def fetch_outfit(location, usage_type):
+    connection = create_db_connection()
+    if connection is None:
+        raise HTTPException(status_code=500, detail="Failed to connect to the database")
+    try:
+        temp = get_temperature(location)
+        
+        cursor = connection.cursor(dictionary=True)
+
+        if temp == "cold":
+            top_clause = "AND ClothingType IN ('Tops', 'Tshirts')"
+            bottom_clause = "AND ClothingType IN ('Trousers', 'Jeans', 'Leggings', 'Lounge Pants', 'Skirts')"
+            overwear_clause = "AND ClothingType IN ('Sweaters', 'Hoodie', 'Cardigan')"
+            jacket_clause = "AND ClothingType in ('Jackets')"
+        elif temp == "neutral":
+            top_clause = "AND ClothingType IN ('Tops', 'Tshirts', 'Tank')"
+            bottom_clause = "AND ClothingType IN ('Trousers', 'Jeans', 'Leggings', 'Lounge Pants', 'Shorts', 'Skirts')"
+            overwear_clause = "AND ClothingType IN ('Sweaters', 'Hoodie', 'Cardigan')"
+            jacket_clause = ""
+        else:  # hot
+            top_clause = "AND ClothingType IN ('Tops', 'Tshirts', 'Tank')"
+            bottom_clause = "AND ClothingType IN ('Trousers', 'Jeans', 'Leggings', 'Lounge Pants', 'Shorts', 'Skirts')"
+            overwear_clause = ""  
+            jacket_clause = ""
+
+        # Prepare queries for fetching clean items with specified usage
+        query_top = f"""
+        SELECT * FROM inventory 
+        WHERE UsageType = '{usage_type}' AND Clean = 1 {top_clause}
+        """
+        
+        query_bottom = f"""
+        SELECT * FROM inventory 
+        WHERE UsageType = '{usage_type}' AND Clean = 1 {bottom_clause}
+        AND ClothingType IN ('Jeans', 'Trousers', 'Skirts', 'Trackpants', 'Leggings', 'Shorts', 'Lounge Pants')
+        """
+        
+        query_overwear = f"""
+        SELECT * FROM inventory 
+        WHERE UsageType = '{usage_type}' AND Clean = 1 {overwear_clause}
+        """
+
+        query_jacket = f"""
+        SELECT * FROM inventory 
+        WHERE UsageType = '{usage_type}' AND Clean = 1 {jacket_clause}
+        """
+
+        query_one_piece = f"""
+        SELECT * FROM inventory 
+        WHERE UsageType = '{usage_type}' AND Clean = 1 
+        AND ClothingType IN ('Dresses', 'Jumpsuit')
+        """
+
+        query_blazer = f"""
+        SELECT * FROM inventory 
+        WHERE UsageType = '{usage_type}' AND Clean = 1
+        AND ClothingType = 'Blazers'
+        """
+        
+        # Execute queries
+        cursor.execute(query_top)
+        tops = cursor.fetchall()
+
+        cursor.execute(query_bottom)
+        bottoms = cursor.fetchall()
+
+        cursor.execute(query_overwear)
+        overwear = cursor.fetchall()
+
+        cursor.execute(query_jacket)
+        jackets = cursor.fetchall()
+
+        cursor.execute(query_one_piece)
+        one_pieces = cursor.fetchall()
+
+        cursor.execute(query_blazer)
+        blazers = cursor.fetchall()
+        blazer_item = None
+        overwear_item = None
+
+        # no clean clothing that meet criteria
+        if not ((tops and bottoms) or (one_pieces)):
+            raise HTTPException(status_code=404, detail="No clean outfits available")
+
+        # generate a blazer 40% of the time when it is formal, and not hot
+        if temp != "hot" and blazers and usage_type == "formal" and random.random() < .4:
+            overwear_item = random.choice(blazers)
+
+        # generate overwear if we didn't generate a blazer
+        if not overwear_item and overwear and (temp == "cold" and random.random() < len(overwear)/OVERWEAR_THRESHOLD):
+            overwear_item = random.choice(overwear)
+        
+        # generate jacket if it's cold
+        if jackets and temp == "cold":
+            jacket_item = random.choice(jackets)
+
+        # 1 piece or 2 piece outfit
+        if one_pieces and (random.random() < len(one_pieces) / (len(one_pieces) + min(len(tops), len(bottoms))) or not tops or not bottoms):
+            # 1 piece
+            # TODO: add user preferences here
+            one_piece = random.choice(one_pieces)
+            return {"top": one_piece, "bottom": None, "overwear": overwear_item, "jacket": jacket_item}
+        else:
+            # 2 piece 
+            # TODO: add user preferences here
+            top = random.choice(tops) if tops else None
+            bottom = random.choice(bottoms) if bottoms else None
+            return {"top": top, "bottom": bottom, "overwear": overwear_item, }
+    except mysql.connector.Error as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Database query failed")
+    finally:
+        cursor.close()
+        connection.close()
+
 
 def create_db_connection():
     try:
@@ -88,53 +227,55 @@ def select_outfit(primary, secondary, item_id1, item_id2):
         cursor.close()
         connection.close()
 
-def fetch_outfit(weather_type, usage_type):
-    connection = create_db_connection()
-    if connection is None:
-        raise HTTPException(status_code=500, detail="Failed to connect to the database")
-    try:
-        cursor = connection.cursor(dictionary=True)
+# def fetch_outfit(weather_type, usage_type):
+#     connection = create_db_connection()
+#     if connection is None:
+#         raise HTTPException(status_code=500, detail="Failed to connect to the database")
+#     try:
+#         cursor = connection.cursor(dictionary=True)
 
-        if weather_type == "warm":
-            season_clause = "AND (Season = 'summer' OR Season = 'spring')"
-        elif weather_type == "cold":
-            season_clause = "AND (Season = 'fall' OR Season = 'winter')"
-        else:
-            season_clause = ""  
+#         if weather_type == "warm":
+#             season_clause = "AND (Season = 'summer' OR Season = 'spring')"
+#         elif weather_type == "cold":
+#             season_clause = "AND (Season = 'fall' OR Season = 'winter')"
+#         else:
+#             season_clause = ""  
 
-        query_top = f"""
-        SELECT * FROM inventory 
-        WHERE UsageType = %s AND Clean = 1 
-        {season_clause} 
-        AND ClothingType IN ('Tshirt', 'Shirts', 'Sweatshirts', 'Tops', 'Shirt')
-        """
+#         query_top = f"""
+#         SELECT * FROM inventory 
+#         WHERE UsageType = %s AND Clean = 1 
+#         {season_clause} 
+#         AND ClothingType IN ('Tshirt', 'Shirts', 'Sweatshirts', 'Tops', 'Shirt')
+#         """
         
-        cursor.execute(query_top, (usage_type,))
-        tops = cursor.fetchall()
+#         cursor.execute(query_top, (usage_type,))
+#         tops = cursor.fetchall()
 
-        query_bottom = f"""
-        SELECT * FROM inventory 
-        WHERE UsageType = %s AND Clean = 1 
-        {season_clause} 
-        AND ClothingType IN ('Jeans', 'Trackpants', 'Shorts', 'Trousers', 'Capris', 'Leggings', 'Skirt')
-        """
-        cursor.execute(query_bottom, (usage_type,))
-        bottoms = cursor.fetchall()
+#         query_bottom = f"""
+#         SELECT * FROM inventory 
+#         WHERE UsageType = %s AND Clean = 1 
+#         {season_clause} 
+#         AND ClothingType IN ('Jeans', 'Trackpants', 'Shorts', 'Trousers', 'Capris', 'Leggings', 'Skirt')
+#         """
+#         cursor.execute(query_bottom, (usage_type,))
+#         bottoms = cursor.fetchall()
 
-        if not tops or not bottoms:
-            raise HTTPException(status_code=404, detail="No clean outfits available for this weather/usage type")
+#         if not tops or not bottoms:
+#             raise HTTPException(status_code=404, detail="No clean outfits available for this weather/usage type")
 
-        top = random.choice(tops)
-        bottom = random.choice(bottoms)
+#         top = random.choice(tops)
+#         bottom = random.choice(bottoms)
 
-        return {"top": top, "bottom": bottom}
+#         return {"top": top, "bottom": bottom}
+#     # "top": top, "bottom": bottom, overwear: "", onepiece"":
+#     # 3
     
-    except mysql.connector.Error as e:
-        print(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database query failed")
-    finally:
-        cursor.close()
-        connection.close()
+#     except mysql.connector.Error as e:
+#         print(f"Error: {e}")
+#         raise HTTPException(status_code=500, detail="Database query failed")
+#     finally:
+#         cursor.close()
+#         connection.close()
 
 def update_uses(uses):
     if uses<=0:
