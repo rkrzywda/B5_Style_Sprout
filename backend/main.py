@@ -2,16 +2,44 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import mysql.connector
 import random
-from config import db_config, apikey
+from config import db_config, apikey, access_key, secret_key
 from pydantic import BaseModel
 import logging
 import requests
+import boto3
+#from B5_Style_Sprout.camera import video_capture
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
 OVERWEAR_THRESHOLD = 10
+
+def extract_info(clothing_item):
+    if clothing_item == None: return None
+    presigned_url = get_presigned_url(clothing_item["ImageUrl"])
+    return {"Color": clothing_item["Color"], "ItemID": clothing_item["ItemID"], "URL": presigned_url}
+
+def get_presigned_url(file):
+    s3 = boto3.client(
+    's3',
+    aws_access_key_id = access_key,
+    aws_secret_access_key = secret_key,
+    region_name = 'us-east-2'   
+    )
+
+    try:
+        presigned_url = s3.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': 'style-sprout',
+                'Key': f'{file}.jpg'
+            },
+            ExpiresIn=3600  # url expires in 1 hour
+        )
+        return presigned_url
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 def get_temperature(location):
     base_url = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={apikey}"
@@ -34,7 +62,6 @@ def get_temperature(location):
     elif temperature>=55:
         return 'neutral'
     return 'cold'
-
 
 # put one piece in top and have bottom empty
  
@@ -128,8 +155,8 @@ def fetch_outfit(location, usage_type):
 
         cursor.execute(query_blazer)
         blazers = cursor.fetchall()
-        blazer_item = None
         overwear_item = None
+        jacket_item = None
 
         # no clean clothing that meet criteria
         if not ((tops and bottoms) or (one_pieces)):
@@ -140,7 +167,7 @@ def fetch_outfit(location, usage_type):
             overwear_item = random.choice(blazers)
 
         # generate overwear if we didn't generate a blazer
-        if not overwear_item and overwear and (temp == "cold" and random.random() < len(overwear)/OVERWEAR_THRESHOLD):
+        if not overwear_item and overwear and random.random() < len(overwear)/OVERWEAR_THRESHOLD:
             overwear_item = random.choice(overwear)
         
         # generate jacket if it's cold
@@ -152,15 +179,20 @@ def fetch_outfit(location, usage_type):
             # 1 piece
             # TODO: add user preferences here
             one_piece = random.choice(one_pieces)
-            return {"top": one_piece, "bottom": None, "overwear": overwear_item, "jacket": jacket_item}
+            return {"top": extract_info(one_piece), 
+                    "bottom": None, 
+                    "overwear": extract_info(overwear_item), 
+                    "jacket": extract_info(jacket_item)}
         else:
             # 2 piece 
             # TODO: add user preferences here
             top = random.choice(tops) if tops else None
             bottom = random.choice(bottoms) if bottoms else None
-            return {"top": top, "bottom": bottom, "overwear": overwear_item, }
+            return {"top": extract_info(top), 
+                    "bottom": extract_info(bottom), 
+                    "overwear": extract_info(overwear_item), 
+                    "jacket": extract_info(jacket_item)}
     except mysql.connector.Error as e:
-        print(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Database query failed")
     finally:
         cursor.close()
@@ -173,7 +205,7 @@ def create_db_connection():
         if connection.is_connected():
             return connection
     except mysql.connector.Error as e:
-        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
         return None
     
 def do_laundry():
@@ -301,15 +333,14 @@ def add_item_to_db(item_info):
         connection.close()
 
 # API routes
-@app.get("/outfit/{weather_type}/{usage_type}")
-def get_outfit(weather_type: str, usage_type: str):
+@app.get("/outfit/{location}/{usage_type}")
+def get_outfit(location: str, usage_type: str):
     valid_usage_types = ["casual", "formal", "athletic"]
-    valid_weather_types = ["warm", "cold", "neutral"]
 
-    if weather_type not in valid_weather_types or usage_type not in valid_usage_types:
+    if usage_type not in valid_usage_types:
         raise HTTPException(status_code=400, detail="Invalid weather/usage type")
 
-    return fetch_outfit(weather_type, usage_type)
+    return fetch_outfit(location, usage_type)
 
 @app.post("/laundry/update/{uses}")
 def change_uses(uses: int):
@@ -362,3 +393,8 @@ def get_closet_images(page: int):
         return {"urls": ['assets/images/24.png', 'assets/images/24.png',
                         'assets/images/24.png', 'assets/images/24.png',
                         'assets/images/24.png', ],"last_page": True}
+# # Mock POST request used by the app to start scanning clothing 
+# @app.post("/start/scanning")
+# def start_scanning():
+#     video_capture.user_start_scanning = True
+#     return

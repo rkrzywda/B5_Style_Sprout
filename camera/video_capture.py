@@ -1,11 +1,11 @@
 import cv2
-import sys, random, os
+import random, os
 import numpy as np
 import time
 import requests
 from pynput import keyboard
 import boto3
-from config import db_config, access_key, secret_key, api_ip
+from config import db_config, access_key, secret_key, api_ip, counter
 import tflite_runtime.interpreter as tflite
  
 type_classes = ['Blazers',
@@ -55,8 +55,14 @@ usage_model.allocate_tensors()
 usage_input = usage_model.get_input_details()
 usage_output = usage_model.get_output_details()
 
+user_start_scanning = False
 take_picture = False
 exit_loop = False
+
+# print("Waiting for user to start scan")
+# while not user_start_scanning:
+#     pass
+
 
 #for detecting a button press (desire to take a picture or exit)
 def on_press(key):
@@ -108,14 +114,15 @@ def scan_clothing():
             sendToDatabase(img, predicted_classes) #update the database
            
             #write an image to send to s3
-            imageName = f"image{random.randint(0, 10**9)}"
-            cv2.imwrite(f"{imageName}.png", img, [cv2.IMWRITE_PNG_COMPRESSION, 9])
-            s3.upload_file(f"{imageName}.png", "style-sprout", imageName)
+            imageName = f"username{counter}"
+            cv2.imwrite(f"{imageName}.jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 90])
+            s3.upload_file(f"{imageName}.jpg", "style-sprout", imageName)
             try:
-                os.remove(f"{imageName}.png")
+                os.remove(f"{imageName}.jpg")
                 print("Taken image was deleted")
             except FileNotFoundError:
                 print("file not found")
+            counter += 1
            
             take_picture = False
 
@@ -183,6 +190,7 @@ def feedIntoModel(img):
 def main():
     listener = keyboard.Listener(on_press=on_press)
     listener.start()
+
     scan_clothing()
 
 main()
