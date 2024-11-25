@@ -5,7 +5,7 @@ import time
 import requests
 from pynput import keyboard
 import boto3
-from config import db_config, access_key, secret_key, api_ip
+from config import db_config, access_key, secret_key, api_ip, counter
 import tflite_runtime.interpreter as tflite
  
 type_classes = ['Blazers',
@@ -114,14 +114,15 @@ def scan_clothing():
             sendToDatabase(img, predicted_classes) #update the database
            
             #write an image to send to s3
-            imageName = f"image{random.randint(0, 10**9)}"
-            cv2.imwrite(f"{imageName}.png", img, [cv2.IMWRITE_PNG_COMPRESSION, 9])
-            s3.upload_file(f"{imageName}.png", "style-sprout", imageName)
+            imageName = f"username{counter}"
+            cv2.imwrite(f"{imageName}.jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 90])
+            s3.upload_file(f"{imageName}.jpg", "style-sprout", imageName)
             try:
-                os.remove(f"{imageName}.png")
+                os.remove(f"{imageName}.jpg")
                 print("Taken image was deleted")
             except FileNotFoundError:
                 print("file not found")
+            counter += 1
            
             take_picture = False
 
