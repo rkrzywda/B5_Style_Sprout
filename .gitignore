@@ -20,3 +20,9 @@ classification/color
 classification/type
 classification/usage
 backend/secret.py
+B5_Style_Sprout
+backend/create_queries.py
+backend/test.py
+backend/test2.py
+venv
+.vscode

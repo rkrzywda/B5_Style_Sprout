@@ -2,10 +2,11 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import mysql.connector
 import random
-from config import db_config, apikey
+from config import db_config, apikey, access_key, secret_key
 from pydantic import BaseModel
 import logging
 import requests
+import boto3
 #from B5_Style_Sprout.camera import video_capture
 
 logging.basicConfig(level=logging.INFO)
@@ -14,10 +15,33 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 OVERWEAR_THRESHOLD = 10
 
+def extract_info(clothing_item):
+    if clothing_item == None: return None
+    presigned_url = get_presigned_url(clothing_item["ImageUrl"])
+    return {"Color": clothing_item["Color"], "ItemID": clothing_item["ItemID"], "URL": presigned_url}
+
+def get_presigned_url(file):
+    s3 = boto3.client(
+    's3',
+    aws_access_key_id = access_key,
+    aws_secret_access_key = secret_key,
+    region_name = 'us-east-2'   
+    )
+
+    try:
+        presigned_url = s3.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': 'style-sprout',
+                'Key': f'{file}.jpg'
+            },
+            ExpiresIn=3600  # url expires in 1 hour
+        )
+        return presigned_url
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 def get_temperature(location):
-    if location == "Pittsburgh":
-        logger.info("COLD")
-        return 'cold'
     base_url = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={apikey}"
     response = requests.get(base_url)
     response.raise_for_status()
@@ -38,7 +62,6 @@ def get_temperature(location):
     elif temperature>=55:
         return 'neutral'
     return 'cold'
-
 
 # put one piece in top and have bottom empty
  
@@ -134,7 +157,6 @@ def fetch_outfit(location, usage_type):
         blazers = cursor.fetchall()
         overwear_item = None
         jacket_item = None
-        outfit = {"top": None, "bottom": None, "overwear": None, "jacket": None}
 
         # no clean clothing that meet criteria
         if not ((tops and bottoms) or (one_pieces)):
@@ -150,7 +172,6 @@ def fetch_outfit(location, usage_type):
         
         # generate jacket if it's cold
         if jackets and temp == "cold":
-            logging.info("JACKET")
             jacket_item = random.choice(jackets)
 
         # 1 piece or 2 piece outfit
@@ -158,15 +179,20 @@ def fetch_outfit(location, usage_type):
             # 1 piece
             # TODO: add user preferences here
             one_piece = random.choice(one_pieces)
-            return {"top": one_piece, "bottom": None, "overwear": overwear_item, "jacket": jacket_item}
+            return {"top": extract_info(one_piece), 
+                    "bottom": None, 
+                    "overwear": extract_info(overwear_item), 
+                    "jacket": extract_info(jacket_item)}
         else:
             # 2 piece 
             # TODO: add user preferences here
             top = random.choice(tops) if tops else None
             bottom = random.choice(bottoms) if bottoms else None
-            return {"top": top, "bottom": bottom, "overwear": overwear_item, "jacket": jacket_item}
+            return {"top": extract_info(top), 
+                    "bottom": extract_info(bottom), 
+                    "overwear": extract_info(overwear_item), 
+                    "jacket": extract_info(jacket_item)}
     except mysql.connector.Error as e:
-        print(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Database query failed")
     finally:
         cursor.close()
@@ -179,7 +205,7 @@ def create_db_connection():
         if connection.is_connected():
             return connection
     except mysql.connector.Error as e:
-        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
         return None
     
 def do_laundry():
