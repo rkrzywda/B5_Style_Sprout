@@ -6,7 +6,7 @@ from config import db_config, apikey, access_key, secret_key
 from pydantic import BaseModel
 import logging
 import requests
-import boto3
+import boto3 # type: ignore
 #from B5_Style_Sprout.camera import video_capture
 
 logging.basicConfig(level=logging.INFO)
@@ -332,6 +332,33 @@ def add_item_to_db(item_info):
         cursor.close()
         connection.close()
 
+def get_image_urls(page):
+    connection = create_db_connection()
+    if connection is None:
+        raise HTTPException(status_code=500, detail="Failed to connect to the database")
+    try:
+        cursor = connection.cursor(dictionary=True)
+        get_urls = f"""
+        SELECT ImageUrl, 
+        IF ({page* 6 + 6} < (SELECT COUNT(*) FROM inventory), 1, 0) 
+        AS LastPage 
+        FROM inventory 
+        LIMIT 6 
+        OFFSET {page* 6};
+        """
+        cursor.execute(get_urls)
+        urls = cursor.fetchall()
+        signed_urls = []
+        for url in urls:
+            signed_urls.append(get_presigned_url(url["ImageUrl"]))
+        return {"urls": signed_urls, "last_page": True if urls[0]["LastPage"] else False}
+    except mysql.connector.Error as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Database query failed")
+    finally:
+        cursor.close()
+        connection.close()
+
 # API routes
 @app.get("/outfit/{location}/{usage_type}")
 def get_outfit(location: str, usage_type: str):
@@ -377,22 +404,10 @@ def change_uses(outfit_info: Outfit_Info):
 
 @app.get("/closet_images/{page}")
 def get_closet_images(page: int):
-    #sql query needs to return the urls of 6 images
-    #page 0 is images 1-6
-    #page 1 is images 7-12
-    #also would like a field named last page
-    #basically if for page+1 there would be no images, last page = true
-    #like if you have 6 images total, page 0 would return lastpage = false
-    #and page 1 would return lastpage = true
+    if page < 0:
+        raise HTTPException(status_code = 400, detail = "Invalid page value")
+    return get_image_urls(page)
 
-    if page==0:
-        return {"urls": ['assets/images/24.png', 'assets/images/24.png',
-                        'assets/images/24.png', 'assets/images/24.png',
-                        'assets/images/24.png', 'assets/images/24.png',],"last_page": False}
-    else:
-        return {"urls": ['assets/images/24.png', 'assets/images/24.png',
-                        'assets/images/24.png', 'assets/images/24.png',
-                        'assets/images/24.png', ],"last_page": True}
 # # Mock POST request used by the app to start scanning clothing 
 # @app.post("/start/scanning")
 # def start_scanning():
