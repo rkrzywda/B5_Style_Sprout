@@ -15,6 +15,9 @@ app = FastAPI()
 OVERWEAR_THRESHOLD = 10
 
 def get_temperature(location):
+    if location == "Pittsburgh":
+        logger.info("COLD")
+        return 'cold'
     base_url = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={apikey}"
     response = requests.get(base_url)
     response.raise_for_status()
@@ -129,8 +132,9 @@ def fetch_outfit(location, usage_type):
 
         cursor.execute(query_blazer)
         blazers = cursor.fetchall()
-        blazer_item = None
         overwear_item = None
+        jacket_item = None
+        outfit = {"top": None, "bottom": None, "overwear": None, "jacket": None}
 
         # no clean clothing that meet criteria
         if not ((tops and bottoms) or (one_pieces)):
@@ -141,11 +145,12 @@ def fetch_outfit(location, usage_type):
             overwear_item = random.choice(blazers)
 
         # generate overwear if we didn't generate a blazer
-        if not overwear_item and overwear and (temp == "cold" and random.random() < len(overwear)/OVERWEAR_THRESHOLD):
+        if not overwear_item and overwear and random.random() < len(overwear)/OVERWEAR_THRESHOLD:
             overwear_item = random.choice(overwear)
         
         # generate jacket if it's cold
         if jackets and temp == "cold":
+            logging.info("JACKET")
             jacket_item = random.choice(jackets)
 
         # 1 piece or 2 piece outfit
@@ -159,7 +164,7 @@ def fetch_outfit(location, usage_type):
             # TODO: add user preferences here
             top = random.choice(tops) if tops else None
             bottom = random.choice(bottoms) if bottoms else None
-            return {"top": top, "bottom": bottom, "overwear": overwear_item, }
+            return {"top": top, "bottom": bottom, "overwear": overwear_item, "jacket": jacket_item}
     except mysql.connector.Error as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Database query failed")
@@ -302,15 +307,14 @@ def add_item_to_db(item_info):
         connection.close()
 
 # API routes
-@app.get("/outfit/{weather_type}/{usage_type}")
-def get_outfit(weather_type: str, usage_type: str):
+@app.get("/outfit/{location}/{usage_type}")
+def get_outfit(location: str, usage_type: str):
     valid_usage_types = ["casual", "formal", "athletic"]
-    valid_weather_types = ["warm", "cold", "neutral"]
 
-    if weather_type not in valid_weather_types or usage_type not in valid_usage_types:
+    if usage_type not in valid_usage_types:
         raise HTTPException(status_code=400, detail="Invalid weather/usage type")
 
-    return fetch_outfit(weather_type, usage_type)
+    return fetch_outfit(location, usage_type)
 
 @app.post("/laundry/update/{uses}")
 def change_uses(uses: int):
