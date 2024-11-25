@@ -2,12 +2,11 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import mysql.connector
 import random
-from config import db_config  
+from config import db_config, apikey
 from pydantic import BaseModel
 import logging
 import requests
 #from B5_Style_Sprout.camera import video_capture
-from secret import apikey
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -246,56 +245,6 @@ def select_outfit(primary, secondary, item_id1, item_id2):
         cursor.close()
         connection.close()
 
-# def fetch_outfit(weather_type, usage_type):
-#     connection = create_db_connection()
-#     if connection is None:
-#         raise HTTPException(status_code=500, detail="Failed to connect to the database")
-#     try:
-#         cursor = connection.cursor(dictionary=True)
-
-#         if weather_type == "warm":
-#             season_clause = "AND (Season = 'summer' OR Season = 'spring')"
-#         elif weather_type == "cold":
-#             season_clause = "AND (Season = 'fall' OR Season = 'winter')"
-#         else:
-#             season_clause = ""  
-
-#         query_top = f"""
-#         SELECT * FROM inventory 
-#         WHERE UsageType = %s AND Clean = 1 
-#         {season_clause} 
-#         AND ClothingType IN ('Tshirt', 'Shirts', 'Sweatshirts', 'Tops', 'Shirt')
-#         """
-        
-#         cursor.execute(query_top, (usage_type,))
-#         tops = cursor.fetchall()
-
-#         query_bottom = f"""
-#         SELECT * FROM inventory 
-#         WHERE UsageType = %s AND Clean = 1 
-#         {season_clause} 
-#         AND ClothingType IN ('Jeans', 'Trackpants', 'Shorts', 'Trousers', 'Capris', 'Leggings', 'Skirt')
-#         """
-#         cursor.execute(query_bottom, (usage_type,))
-#         bottoms = cursor.fetchall()
-
-#         if not tops or not bottoms:
-#             raise HTTPException(status_code=404, detail="No clean outfits available for this weather/usage type")
-
-#         top = random.choice(tops)
-#         bottom = random.choice(bottoms)
-
-#         return {"top": top, "bottom": bottom}
-#     # "top": top, "bottom": bottom, overwear: "", onepiece"":
-#     # 3
-    
-#     except mysql.connector.Error as e:
-#         print(f"Error: {e}")
-#         raise HTTPException(status_code=500, detail="Database query failed")
-#     finally:
-#         cursor.close()
-#         connection.close()
-
 def update_uses(uses):
     if uses<=0:
         raise HTTPException(status_code=404, detail="Uses cannot be 0")
@@ -337,12 +286,11 @@ def add_item_to_db(item_info):
         image_url = f"username{last_id+1}"
         clothing_type = item_info["clothingType"]
         color = item_info["color"]
-        season = item_info["season"]
         usage_type = item_info["usageType"]
         
         add_item = f"""
-        INSERT INTO inventory (ClothingType, Color, Season, UsageType, ImageUrl)
-        VALUES ('{clothing_type}', '{color}', '{season}', '{usage_type}', '{image_url}');
+        INSERT INTO inventory (ClothingType, Color, UsageType, ImageUrl)
+        VALUES ('{clothing_type}', '{color}', '{usage_type}', '{image_url}');
         """
         cursor.execute(add_item)
         connection.commit()
@@ -387,17 +335,9 @@ class Outfit_Info(BaseModel):
 # POST request used by the Xavier NX to send information about the classified outfit to the database
 @app.post("/outfit/info")
 def change_uses(outfit_info: Outfit_Info):
-    if (outfit_info.clothingType in ('Shorts')):
-       season = 'Summer'
-    elif (outfit_info.clothingType in ('Sweatshirts')):
-        season = 'Winter'
-    else:
-        season = "Spring"
-   
     outfit_item_info = {
         "clothingType": outfit_info.clothingType,
         "color": outfit_info.color,
-        "season": season,
         "usageType": outfit_info.usageType,
     }
 
