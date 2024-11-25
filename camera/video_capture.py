@@ -1,11 +1,11 @@
-#starter code from CodingLikeMad's Reading Webcams in Python [Python OpenCV Tutorial] youtube video
 import cv2
-import sys
-#import tensorflow as tf
+import sys, random, os
 import numpy as np
 import time
 import requests
 from pynput import keyboard
+import boto3
+from config import db_config, access_key, secret_key, api_ip
 import tflite_runtime.interpreter as tflite
  
 type_classes = ['Blazers',
@@ -39,6 +39,7 @@ color_classes = ['Beige',
 ]
 usage_classes=['casual', 'formal']
 
+#Create models
 type_model = tflite.Interpreter(model_path='type.tflite')
 type_model.allocate_tensors()
 type_input = type_model.get_input_details()
@@ -54,27 +55,32 @@ usage_model.allocate_tensors()
 usage_input = usage_model.get_input_details()
 usage_output = usage_model.get_output_details()
 
-print("Que pasa??")
-
 take_picture = False
 exit_loop = False
-save_to_database = False
 
+#for detecting a button press (desire to take a picture or exit)
 def on_press(key):
-    global take_picture, exit_loop, save_to_database
+    global take_picture, exit_loop
     try:
         if key.char == 'c':
             take_picture = True
         elif key.char == '0':
             exit_loop = True
-        elif key.char == 's':
-            save_to_database = True
     except AttributeError:
         pass
 
-
+#continously take pictures, classify them, send to a database and s3
 def scan_clothing():
-    global take_picture, exit_loop, save_to_database
+    global take_picture, exit_loop
+    s3 = boto3.client(
+        's3',
+        aws_access_key_id = access_key,
+        aws_secret_access_key = secret_key,
+        region_name = 'us-east-2'
+    )
+   
+    #initialize the camera,
+    #starter code for cv from CodingLikeMad's Reading Webcams in Python [Python OpenCV Tutorial]
     camera = cv2.VideoCapture(0)
     camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
@@ -88,7 +94,7 @@ def scan_clothing():
         if take_picture: #when enter is pressed, take an image after a 2s delay
             print()
             time.sleep(2)
-            ret, img = camera.read()
+            ret, img = camera.read() #take the picture
             if not ret:
                 print("Error: Failed to capture image.")
                 break
@@ -99,13 +105,25 @@ def scan_clothing():
             cv2.waitKey(100)
             predicted_classes = feedIntoModel(img);
             print(predicted_classes)
+            sendToDatabase(img, predicted_classes) #update the database
+           
+            #write an image to send to s3
+            imageName = f"image{random.randint(0, 10**9)}"
+            cv2.imwrite(f"{imageName}.png", img, [cv2.IMWRITE_PNG_COMPRESSION, 9])
+            s3.upload_file(f"{imageName}.png", "style-sprout", imageName)
+            try:
+                os.remove(f"{imageName}.png")
+                print("Taken image was deleted")
+            except FileNotFoundError:
+                print("file not found")
+           
             take_picture = False
 
        
         if save_to_database: #button that indicates we should save the data has been pressed
             print()
             print("sending to database")
-            sendToDatabase(img, "Test Data")
+            sendToDatabase(img, predicted_classes)
             save_to_database = False
        
        
@@ -114,27 +132,21 @@ def scan_clothing():
             print("exiting loop")
             break
        
-        # cv2.imwrite('frame_{}.jpg'.format(frame_number), frame) //saves it to a jpg if we want
-
     camera.release()
     cv2.destroyAllWindows()
 
 
 #Sends a taken image to the database
 def sendToDatabase(img, predicted_classes):
-    outfitUrl = "http://128.2.13.179:8000/outfit/info"
-    #when we run it with --host 0.0.0.0 might need to change it to the hostees ipaddress
-    test_outfit_data = {
-        "clothingType": "Sweater",
-        "color": "Blue",
-        "usageType":"Formal",
-    }
+   
+    outfitUrl = f"http://{api_ip}:8000/outfit/info" #get the current api_ip from config.py
+
     print("sending post request")
-    response = requests.post(outfitUrl, json=test_outfit_data) #send post request
+    response = requests.post(outfitUrl, json=predicted_classes) #send post request
     print("Response from API ", response.json())
     return
 
-
+#feeds an image into the model and gets the classifications back
 def feedIntoModel(img):
     image_resized = cv2.resize(img, (224, 224))
     image_normalized = image_resized / 255.0
@@ -159,12 +171,15 @@ def feedIntoModel(img):
         predicted_usage = usage_classes[np.argmax(usage_predictions)]
     elif predicted_type in {'Blazers'}:
         predicted_usage = 'Formal'
-    print(predicted_type)
-    print(predicted_color)
-    print(predicted_usage)
-    return [predicted_type, predicted_color, predicted_usage]
+   
+    predicted_classes = {
+        "clothingType": predicted_type,
+        "color": predicted_color,
+        "usageType": predicted_usage,
+    }
+    return predicted_classes
 
-
+#start the main processes
 def main():
     listener = keyboard.Listener(on_press=on_press)
     listener.start()
