@@ -5,6 +5,7 @@ backend/config.py
 camera/capstone_cv
 classification/background.png
 classification/test.py
+classification/final_test.py
 classification/image
 classification/type_subset
 classification/color_subset
@@ -13,3 +14,9 @@ classification/color_subset
 *.png
 *.jpg
 *.h5
+*.pb
+*.tflite
+classification/color
+classification/type
+classification/usage
+backend/secret.py

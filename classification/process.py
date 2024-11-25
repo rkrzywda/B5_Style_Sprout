@@ -73,7 +73,7 @@ df['articleType'] = df['articleType'].replace('Romper', 'Dresses')
 df = df[df['articleType'].isin(['Trousers'])]
 df = df[df.isna().any(axis=1)]
 
-seen = pd.read_csv('usage_subset.csv')
+seen = pd.read_csv('subset_type.csv')
 #id_set = set(seen['id'])
 #seen.fillna('Formal', inplace=True)
 #seen.to_csv('usage_subset.csv', index=False)
@@ -100,7 +100,7 @@ if False:
 
 if True:
     image_folder = 'fashion-dataset/images'
-    output_folder = 'usage_subset'
+    output_folder = 'type_subset'
     output_data = []
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)

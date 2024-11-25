@@ -5,6 +5,8 @@ import random
 from config import db_config  
 from pydantic import BaseModel
 import logging
+import requests
+from secret import apikey
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -13,11 +15,27 @@ app = FastAPI()
 OVERWEAR_THRESHOLD = 10
 
 def get_temperature(location):
-    # TODO: add a weather api call here based on location
-    if location == "Pittsburgh":
-        return "neutral" # options are cold, neutral, hot
-    
-    
+    base_url = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={apikey}"
+    response = requests.get(base_url)
+    response.raise_for_status()
+
+    data = response.json()
+    lat = data[0]['lat']
+    lon = data[0]['lon']
+
+    base_url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={apikey}&units=imperial"
+    response = requests.get(base_url)
+    response.raise_for_status()
+
+    data = response.json()
+    temperature = data['main']['temp']
+
+    if temperature>=70:
+        return 'hot'
+    elif temperature>=55:
+        return 'neutral'
+    return 'cold'
+
 
 # put one piece in top and have bottom empty
  
