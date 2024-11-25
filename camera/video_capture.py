@@ -1,5 +1,5 @@
 import cv2
-import sys, random, os
+import random, os
 import numpy as np
 import time
 import requests
@@ -55,8 +55,14 @@ usage_model.allocate_tensors()
 usage_input = usage_model.get_input_details()
 usage_output = usage_model.get_output_details()
 
+user_start_scanning = False
 take_picture = False
 exit_loop = False
+
+# print("Waiting for user to start scan")
+# while not user_start_scanning:
+#     pass
+
 
 #for detecting a button press (desire to take a picture or exit)
 def on_press(key):
@@ -183,6 +189,7 @@ def feedIntoModel(img):
 def main():
     listener = keyboard.Listener(on_press=on_press)
     listener.start()
+
     scan_clothing()
 
 main()

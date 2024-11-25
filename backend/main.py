@@ -6,6 +6,7 @@ from config import db_config
 from pydantic import BaseModel
 import logging
 import requests
+#from B5_Style_Sprout.camera import video_capture
 from secret import apikey
 
 logging.basicConfig(level=logging.INFO)
@@ -404,3 +405,8 @@ def change_uses(outfit_info: Outfit_Info):
 
     return "Successful"
 
+# # Mock POST request used by the app to start scanning clothing 
+# @app.post("/start/scanning")
+# def start_scanning():
+#     video_capture.user_start_scanning = True
+#     return
