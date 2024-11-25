@@ -344,3 +344,21 @@ def change_uses(outfit_info: Outfit_Info):
 
     return "Successful"
 
+@app.get("/closet_images/{page}")
+def get_closet_images(page: int):
+    #sql query needs to return the urls of 6 images
+    #page 0 is images 1-6
+    #page 1 is images 7-12
+    #also would like a field named last page
+    #basically if for page+1 there would be no images, last page = true
+    #like if you have 6 images total, page 0 would return lastpage = false
+    #and page 1 would return lastpage = true
+
+    if page==0:
+        return {"urls": ['assets/images/24.png', 'assets/images/24.png',
+                        'assets/images/24.png', 'assets/images/24.png',
+                        'assets/images/24.png', 'assets/images/24.png',],"last_page": False}
+    else:
+        return {"urls": ['assets/images/24.png', 'assets/images/24.png',
+                        'assets/images/24.png', 'assets/images/24.png',
+                        'assets/images/24.png', ],"last_page": True}
