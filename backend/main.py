@@ -385,6 +385,8 @@ def add_item_to_db(item_info):
         connection.close()
 
 # get image urls for the images in the given page number of the closet
+# please edit to return a list of urls as well as a list of ids
+# please call the list of ids 'ids'
 def get_image_urls(page):
     connection = create_db_connection()
     if connection is None:
@@ -486,27 +488,12 @@ def get_closet_images(page: int):
         raise HTTPException(status_code = 400, detail = "Invalid page value")
     return get_image_urls(page)
 
-@app.get("/image_labels/{url}")
-def get_image_labels(url: str):
-    #should return the labels for the url string in order of clothing, color, usage
-    #url is encoded with / as * to prevent url issues
-    url = url.replace('*', '/')
-    return {"labels": ['Dresses', 'Beige', 'Casual']}
+@app.get("/image_labels/{id}")
+def get_image_labels(id: str):
+    response = extract_info(id)
+    return {[response["Color"], response["ClothingType"],
+            response["UsageType"], response["NumUses"]]}
 
-@app.post("/label_update/{url}/{column_type}/{new_label}")
-def update_label(url: str, column_type: int, new_label: str):
-    #should update the label for url with the new_label
-    #type denotes which column:
-    #type = 0 means updating clothing type with new_label
-    #type = 1 means updating color with new_label
-    #type = 2 means updating usage with new_label
-    #url is encoded with / as * to prevent url issues
-    print(url)
-    print(column_type)
-    print(new_label)
-    url = url.replace('*', '/')
-    if column_type < 0 or column_type>2:
-        raise HTTPException(status_code = 400, detail = "Invalid column")
 
 # # Mock POST request used by the app to start scanning clothing 
 # @app.post("/start/scanning")
