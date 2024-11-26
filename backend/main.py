@@ -528,7 +528,7 @@ def change_uses(outfit_info: Outfit_Info):
         "clothingType": outfit_info.clothingType,
         "color": outfit_info.color,
         "usageType": outfit_info.usageType,
-        "url": outfit_info.url,
+        "imageName": outfit_info.imageName,
     }
 
     add_item_to_db(outfit_item_info)

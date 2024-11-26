@@ -151,13 +151,13 @@ def sendToDatabase(img, predicted_classes, imageName):
     outfitUrl = f"http://{api_ip}:8000/outfit/info" #get the current api_ip from config.py
 
     print("sending post request")
-    databaseinfo = {
+    databaseInfo = {
         "clothingType": predicted_classes["clothingType"],
         "color": predicted_classes["color"],
         "usageType": predicted_classes["usageType"],
-        "url": f"s3://style-sprout/{imageName}.jpg",
+        "imageName": imageName,
     }
-    response = requests.post(outfitUrl, json=predicted_classes) #send post request
+    response = requests.post(outfitUrl, json=databaseInfo) #send post request
     print("Response from API ", response.json())
     return
 
