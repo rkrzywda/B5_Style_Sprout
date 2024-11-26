@@ -50,6 +50,8 @@ def get_presigned_url(file):
 
 # get the temperature of a location
 def get_temperature(location):
+    #if location == "Pittsburgh":
+    #    return "cold"
     base_url = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={apikey}"
     response = requests.get(base_url)
     response.raise_for_status()
@@ -281,8 +283,10 @@ def select_outfit(primary, secondary, item_id1, item_id2, item_id3, item_id4):
         update_clean_status = f"""
         UPDATE inventory
         JOIN settings ON settings.ID = 1
-        SET Clean = 0
-        WHERE NumUses >= settings.UsesBeforeDirty;
+        SET Clean = CASE
+            WHEN NumUses >= settings.UsesBeforeDirty THEN 0
+            WHEN NumUses < settings.UsesBeforeDirty THEN 1
+        END;
         """
         cursor.execute(update_clean_status)
 
@@ -294,7 +298,7 @@ def select_outfit(primary, secondary, item_id1, item_id2, item_id3, item_id4):
         cursor.close()
         connection.close()
 
-# edit the classifications of an item
+# edit the classifications of an item from the closet page
 def edit_classification(id, usage, color, num_uses, item_type):
     connection = create_db_connection()
     if connection is None:
@@ -315,8 +319,10 @@ def edit_classification(id, usage, color, num_uses, item_type):
         update_clean_status = f"""
         UPDATE inventory
         JOIN settings ON settings.ID = 1
-        SET Clean = 0
-        WHERE NumUses >= settings.UsesBeforeDirty;
+        SET Clean = CASE
+            WHEN NumUses >= settings.UsesBeforeDirty THEN 0
+            WHEN NumUses < settings.UsesBeforeDirty THEN 1
+        END;
         """
         cursor.execute(update_clean_status)
         connection.commit()
@@ -384,17 +390,15 @@ def add_item_to_db(item_info):
         cursor.close()
         connection.close()
 
-# get image urls for the images in the given page number of the closet
-# please edit to return a list of urls as well as a list of ids
-# please call the list of ids 'ids'
-def get_image_urls(page):
+# gets the image urls and ids on a page, also returns if there are more pages after
+def closet_items(page):
     connection = create_db_connection()
     if connection is None:
         raise HTTPException(status_code=500, detail="Failed to connect to the database")
     try:
         cursor = connection.cursor(dictionary=True)
         get_urls = f"""
-        SELECT ImageUrl, 
+        SELECT ImageUrl, ItemID,
         IF ({page* 6 + 6} < (SELECT COUNT(*) FROM inventory), 1, 0) 
         AS LastPage 
         FROM inventory 
@@ -402,11 +406,38 @@ def get_image_urls(page):
         OFFSET {page* 6};
         """
         cursor.execute(get_urls)
-        urls = cursor.fetchall()
+        closet = cursor.fetchall()
+        ids = []
         signed_urls = []
-        for url in urls:
-            signed_urls.append(get_presigned_url(url["ImageUrl"]))
-        return {"urls": signed_urls, "last_page": False if urls[0]["LastPage"] else True}
+        for item in closet:
+            signed_urls.append(get_presigned_url(item["ImageUrl"]))
+            ids.append(str(item["ItemID"]))
+        return {"urls": signed_urls, 
+                "last_page": False if closet[0]["LastPage"] else True, 
+                "ids": ids}
+    except mysql.connector.Error as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Database query failed")
+    finally:
+        cursor.close()
+        connection.close()
+
+# gets color, usage, clothing type, and number of use info from an item's id
+def get_item_info(id):
+    connection = create_db_connection()
+    if connection is None:
+        raise HTTPException(status_code=500, detail="Failed to connect to the database")
+    try:
+        cursor = connection.cursor(dictionary=True)
+        get_info = f"""
+        SELECT Color, UsageType, ClothingType, NumUses 
+        FROM inventory
+        WHERE ItemID = {id}
+        """
+        cursor.execute(get_info)
+        result = cursor.fetchall()
+        logger.info(f"result: {result}")
+        return result[0]
     except mysql.connector.Error as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Database query failed")
@@ -479,20 +510,21 @@ def change_uses(outfit_info: Outfit_Info):
     }
 
     add_item_to_db(outfit_item_info)
-
     return "Successful"
 
+# returns image urls to display on closet page
 @app.get("/closet_images/{page}")
 def get_closet_images(page: int):
     if page < 0:
         raise HTTPException(status_code = 400, detail = "Invalid page value")
-    return get_image_urls(page)
+    return closet_items(page)
 
+# returns labels of an item given its id
 @app.get("/image_labels/{id}")
 def get_image_labels(id: str):
-    response = extract_info(id)
-    return {[response["Color"], response["ClothingType"],
-            response["UsageType"], response["NumUses"]]}
+    response = get_item_info(id)
+    return {"labels": [response["Color"], response["ClothingType"],
+            response["UsageType"], str(response["NumUses"])]}
 
 
 # # Mock POST request used by the app to start scanning clothing 
