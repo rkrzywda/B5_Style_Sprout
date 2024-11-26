@@ -227,7 +227,7 @@ def do_laundry():
         cursor.close()
         connection.close()
 
-def select_outfit(primary, secondary, item_id1, item_id2):
+def select_outfit(primary, secondary, item_id1, item_id2, item_id3, item_id4):
     connection = create_db_connection()
     if connection is None:
         raise HTTPException(status_code=500, detail="Failed to connect to the database")
@@ -253,10 +253,16 @@ def select_outfit(primary, secondary, item_id1, item_id2):
         """
         cursor.execute(update_preferences)
 
+        valid_ids = []
+        for id in (item_id1, item_id2, item_id3, item_id4):
+            if id != -1:
+                valid_ids.append(id)
+        valid_ids = tuple(valid_ids)
+
         update_usage = f"""
         UPDATE inventory
         SET NumUses = NumUses + 1
-        WHERE ItemID = {item_id1} OR ItemID = {item_id2}
+        WHERE ItemID in {valid_ids}
         """
         cursor.execute(update_usage)
 
@@ -351,7 +357,7 @@ def get_image_urls(page):
         signed_urls = []
         for url in urls:
             signed_urls.append(get_presigned_url(url["ImageUrl"]))
-        return {"urls": signed_urls, "last_page": True if urls[0]["LastPage"] else False}
+        return {"urls": signed_urls, "last_page": False if urls[0]["LastPage"] else True}
     except mysql.connector.Error as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Database query failed")
@@ -375,9 +381,9 @@ def change_uses(uses: int):
         raise HTTPException(status_code=400, detail="Invalid uses value")
     return update_uses(uses)
 
-@app.post("/select/{primary}/{secondary}/{item_id1}/{item_id2}")
-def outfit_db_update(item_id1: int, item_id2: int, primary: str, secondary: str):
-    return select_outfit(primary, secondary, item_id1, item_id2)
+@app.post("/select/{primary}/{secondary}/{item_id1}/{item_id2}/{item_id3}/{item_id4}")
+def outfit_db_update(item_id1: int, item_id2: int, item_id3: int, item_id4: int, primary: str, secondary: str):
+    return select_outfit(primary, secondary, item_id1, item_id2, item_id3, item_id4)
 
 @app.post("/laundry/reset")
 def reset_laundry():
