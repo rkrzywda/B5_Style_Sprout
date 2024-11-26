@@ -111,8 +111,7 @@ def scan_clothing():
             cv2.waitKey(100)
             predicted_classes = feedIntoModel(img);
             print(predicted_classes)
-            sendToDatabase(img, predicted_classes) #update the database
-           
+            
             #write an image to send to s3
             imageName = f"username{counter}"
             cv2.imwrite(f"{imageName}.jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 90])
@@ -124,6 +123,9 @@ def scan_clothing():
                 print("file not found")
             counter += 1
            
+            #send to SQL database
+            sendToDatabase(img, predicted_classes, imageName) #update the database
+        
             take_picture = False
 
        
@@ -144,11 +146,17 @@ def scan_clothing():
 
 
 #Sends a taken image to the database
-def sendToDatabase(img, predicted_classes):
+def sendToDatabase(img, predicted_classes, imageName):
    
     outfitUrl = f"http://{api_ip}:8000/outfit/info" #get the current api_ip from config.py
 
     print("sending post request")
+    databaseinfo = {
+        "clothingType": predicted_classes["clothingType"],
+        "color": predicted_classes["color"],
+        "usageType": predicted_classes["usageType"],
+        "url": f"s3://style-sprout/{imageName}.jpg",
+    }
     response = requests.post(outfitUrl, json=predicted_classes) #send post request
     print("Response from API ", response.json())
     return
