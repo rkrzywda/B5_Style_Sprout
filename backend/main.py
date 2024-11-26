@@ -68,11 +68,25 @@ def get_temperature(location):
     temperature = data['main']['temp']
 
     if temperature>=70:
+        logger.info("hot")
         return 'hot'
     elif temperature>=55:
+        logger.info("neutral")
         return 'neutral'
+    logger.info("cold")
     return 'cold'
 
+# check for location validity
+def is_valid_location(location):
+    base_url = f"http://api.openweathermap.org/data/2.5/weather?q={location}&appid={apikey}"
+    try:
+        response = requests.get(base_url)
+        if response.status_code == 200:
+            return True
+        else: return False
+    except Exception as e:
+        return False
+    
 # put one piece in top and have bottom empty
  
 # cold
@@ -89,14 +103,21 @@ def get_temperature(location):
 # no sweater/jacket etc (no blazer)
 
 # generate an outfit given a location and usage type
-def fetch_outfit(location, usage_type):
+def fetch_outfit(usage_type):
     connection = create_db_connection()
     if connection is None:
         raise HTTPException(status_code=500, detail="Failed to connect to the database")
     try:
-        temp = get_temperature(location)
-        
         cursor = connection.cursor(dictionary=True)
+
+        location_query = """
+        SELECT Location
+        FROM settings
+        WHERE ID = 1
+        """
+        cursor.execute(location_query)
+        location = cursor.fetchall()[0]["Location"]
+        temp = get_temperature(location)
 
         if temp == "cold":
             top_clause = "AND ClothingType IN ('Tops', 'Tshirts')"
@@ -334,7 +355,7 @@ def edit_classification(id, usage, color, num_uses, item_type):
         connection.close()
 
 # updates the number of uses for items to be considered "dirty"
-def update_uses(uses):
+def update_settings(uses, location):
     connection = create_db_connection()
     if connection is None:
         raise HTTPException(status_code=500, detail="Failed to connect to the database")
@@ -342,7 +363,8 @@ def update_uses(uses):
         cursor = connection.cursor(dictionary=True)
         update_uses = f"""
         UPDATE settings
-        SET UsesBeforeDirty = {uses}
+        SET UsesBeforeDirty = {uses},
+        Location = "{location}"
         """
         cursor.execute(update_uses)
         connection.commit()
@@ -436,7 +458,6 @@ def get_item_info(id):
         """
         cursor.execute(get_info)
         result = cursor.fetchall()
-        logger.info(f"result: {result}")
         return result[0]
     except mysql.connector.Error as e:
         print(f"Error: {e}")
@@ -448,21 +469,21 @@ def get_item_info(id):
 # API routes
 
 # get the outfit for a user given their location, and the usage type they request
-@app.get("/outfit/{location}/{usage_type}")
-def get_outfit(location: str, usage_type: str):
+@app.get("/outfit/{usage_type}")
+def get_outfit(usage_type: str):
     valid_usage_types = {"Casual", "Formal"}
 
     if usage_type not in valid_usage_types:
-        raise HTTPException(status_code=400, detail="Invalid weather/usage type")
+        raise HTTPException(status_code=400, detail="Invalid usage type")
 
-    return fetch_outfit(location, usage_type)
+    return fetch_outfit(usage_type)
 
-# update the number of uses for an item to be considered "dirty"
-@app.post("/laundry/update/{uses}")
-def change_uses(uses: int):
-    if uses<=0 or uses>100:
-        raise HTTPException(status_code=400, detail="Invalid uses value")
-    return update_uses(uses)
+# update the number of uses for an item to be considered "dirty" and user's location
+@app.post("/settings/update/{uses}/{location}")
+def change_uses(uses: int, location: str):
+    if uses<=0 or uses>100 or not is_valid_location(location):
+        raise HTTPException(status_code=400, detail="Invalid uses/location")
+    return update_settings(uses, location)
 
 # update database table values when a user selects an outfit
 @app.post("/select/{primary}/{secondary}/{item_id1}/{item_id2}/{item_id3}/{item_id4}")
