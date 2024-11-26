@@ -15,11 +15,18 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 OVERWEAR_THRESHOLD = 10
 
+# returns necessary info of a clothing item
 def extract_info(clothing_item):
     if clothing_item == None: return None
     presigned_url = get_presigned_url(clothing_item["ImageUrl"])
-    return {"Color": clothing_item["Color"], "ItemID": clothing_item["ItemID"], "URL": presigned_url}
+    return {"Color": clothing_item["Color"],
+            "ItemID": clothing_item["ItemID"],
+            "URL": presigned_url,
+            "ClothingType": clothing_item["ClothingType"],
+            "UsageType": clothing_item["UsageType"],
+            "NumUses": clothing_item["NumUses"]}
 
+# gets the secure, presigned url from the s3 file
 def get_presigned_url(file):
     s3 = boto3.client(
     's3',
@@ -41,7 +48,10 @@ def get_presigned_url(file):
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+# get the temperature of a location
 def get_temperature(location):
+    #if location == "Pittsburgh":
+    #    return "cold"
     base_url = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={apikey}"
     response = requests.get(base_url)
     response.raise_for_status()
@@ -58,11 +68,25 @@ def get_temperature(location):
     temperature = data['main']['temp']
 
     if temperature>=70:
+        logger.info("hot")
         return 'hot'
     elif temperature>=55:
+        logger.info("neutral")
         return 'neutral'
+    logger.info("cold")
     return 'cold'
 
+# check for location validity
+def is_valid_location(location):
+    base_url = f"http://api.openweathermap.org/data/2.5/weather?q={location}&appid={apikey}"
+    try:
+        response = requests.get(base_url)
+        if response.status_code == 200:
+            return True
+        else: return False
+    except Exception as e:
+        return False
+    
 # put one piece in top and have bottom empty
  
 # cold
@@ -78,14 +102,22 @@ def get_temperature(location):
 # hot
 # no sweater/jacket etc (no blazer)
 
-def fetch_outfit(location, usage_type):
+# generate an outfit given a location and usage type
+def fetch_outfit(usage_type):
     connection = create_db_connection()
     if connection is None:
         raise HTTPException(status_code=500, detail="Failed to connect to the database")
     try:
-        temp = get_temperature(location)
-        
         cursor = connection.cursor(dictionary=True)
+
+        location_query = """
+        SELECT Location
+        FROM settings
+        WHERE ID = 1
+        """
+        cursor.execute(location_query)
+        location = cursor.fetchall()[0]["Location"]
+        temp = get_temperature(location)
 
         if temp == "cold":
             top_clause = "AND ClothingType IN ('Tops', 'Tshirts')"
@@ -198,7 +230,7 @@ def fetch_outfit(location, usage_type):
         cursor.close()
         connection.close()
 
-
+# connect to the database
 def create_db_connection():
     try:
         connection = mysql.connector.connect(**db_config)
@@ -208,6 +240,7 @@ def create_db_connection():
         raise HTTPException(status_code=500, detail=str(e))
         return None
     
+# set all clothing to clean with 0 uses
 def do_laundry():
     connection = create_db_connection()
     if connection is None:
@@ -227,7 +260,9 @@ def do_laundry():
         cursor.close()
         connection.close()
 
-def select_outfit(primary, secondary, item_id1, item_id2):
+# select a generated outfit and update database table to reflect these
+# items were selected
+def select_outfit(primary, secondary, item_id1, item_id2, item_id3, item_id4):
     connection = create_db_connection()
     if connection is None:
         raise HTTPException(status_code=500, detail="Failed to connect to the database")
@@ -253,18 +288,26 @@ def select_outfit(primary, secondary, item_id1, item_id2):
         """
         cursor.execute(update_preferences)
 
+        valid_ids = []
+        for id in (item_id1, item_id2, item_id3, item_id4):
+            if id != -1:
+                valid_ids.append(id)
+        valid_ids = tuple(valid_ids)
+
         update_usage = f"""
         UPDATE inventory
         SET NumUses = NumUses + 1
-        WHERE ItemID = {item_id1} OR ItemID = {item_id2}
+        WHERE ItemID in {valid_ids}
         """
         cursor.execute(update_usage)
 
         update_clean_status = f"""
         UPDATE inventory
         JOIN settings ON settings.ID = 1
-        SET Clean = 0
-        WHERE NumUses >= settings.UsesBeforeDirty;
+        SET Clean = CASE
+            WHEN NumUses >= settings.UsesBeforeDirty THEN 0
+            WHEN NumUses < settings.UsesBeforeDirty THEN 1
+        END;
         """
         cursor.execute(update_clean_status)
 
@@ -276,9 +319,43 @@ def select_outfit(primary, secondary, item_id1, item_id2):
         cursor.close()
         connection.close()
 
-def update_uses(uses):
-    if uses<=0:
-        raise HTTPException(status_code=404, detail="Uses cannot be 0")
+# edit the classifications of an item from the closet page
+def edit_classification(id, usage, color, num_uses, item_type):
+    connection = create_db_connection()
+    if connection is None:
+        raise HTTPException(status_code=500, detail="Failed to connect to the database")
+    try:
+        cursor = connection.cursor(dictionary=True)
+        update_classification = f"""
+        UPDATE inventory
+        SET ClothingType = '{item_type}',
+        Color = '{color}',
+        UsageType = '{usage}',
+        NumUses = {num_uses}
+        WHERE ItemID = {id}
+        """
+        
+        cursor.execute(update_classification)
+
+        update_clean_status = f"""
+        UPDATE inventory
+        JOIN settings ON settings.ID = 1
+        SET Clean = CASE
+            WHEN NumUses >= settings.UsesBeforeDirty THEN 0
+            WHEN NumUses < settings.UsesBeforeDirty THEN 1
+        END;
+        """
+        cursor.execute(update_clean_status)
+        connection.commit()
+    except mysql.connector.Error as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Database query failed")
+    finally:
+        cursor.close()
+        connection.close()
+
+# updates the number of uses for items to be considered "dirty"
+def update_settings(uses, location):
     connection = create_db_connection()
     if connection is None:
         raise HTTPException(status_code=500, detail="Failed to connect to the database")
@@ -286,7 +363,8 @@ def update_uses(uses):
         cursor = connection.cursor(dictionary=True)
         update_uses = f"""
         UPDATE settings
-        SET UsesBeforeDirty = {uses}
+        SET UsesBeforeDirty = {uses},
+        Location = "{location}"
         """
         cursor.execute(update_uses)
         connection.commit()
@@ -297,6 +375,7 @@ def update_uses(uses):
         cursor.close()
         connection.close()
 
+# adds a newly scanned item to the database
 def add_item_to_db(item_info):
     connection = create_db_connection()
     if connection is None:
@@ -310,6 +389,7 @@ def add_item_to_db(item_info):
         limit 1;
         """
 
+        # TODO: change image_url to be set to whatever Riley names urls
         cursor.execute(get_last_id)
         last_id = cursor.fetchall()
         print(last_id)
@@ -332,14 +412,15 @@ def add_item_to_db(item_info):
         cursor.close()
         connection.close()
 
-def get_image_urls(page):
+# gets the image urls and ids on a page, also returns if there are more pages after
+def closet_items(page):
     connection = create_db_connection()
     if connection is None:
         raise HTTPException(status_code=500, detail="Failed to connect to the database")
     try:
         cursor = connection.cursor(dictionary=True)
         get_urls = f"""
-        SELECT ImageUrl, 
+        SELECT ImageUrl, ItemID,
         IF ({page* 6 + 6} < (SELECT COUNT(*) FROM inventory), 1, 0) 
         AS LastPage 
         FROM inventory 
@@ -347,11 +428,37 @@ def get_image_urls(page):
         OFFSET {page* 6};
         """
         cursor.execute(get_urls)
-        urls = cursor.fetchall()
+        closet = cursor.fetchall()
+        ids = []
         signed_urls = []
-        for url in urls:
-            signed_urls.append(get_presigned_url(url["ImageUrl"]))
-        return {"urls": signed_urls, "last_page": True if urls[0]["LastPage"] else False}
+        for item in closet:
+            signed_urls.append(get_presigned_url(item["ImageUrl"]))
+            ids.append(str(item["ItemID"]))
+        return {"urls": signed_urls, 
+                "last_page": False if closet[0]["LastPage"] else True, 
+                "ids": ids}
+    except mysql.connector.Error as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Database query failed")
+    finally:
+        cursor.close()
+        connection.close()
+
+# gets color, usage, clothing type, and number of use info from an item's id
+def get_item_info(id):
+    connection = create_db_connection()
+    if connection is None:
+        raise HTTPException(status_code=500, detail="Failed to connect to the database")
+    try:
+        cursor = connection.cursor(dictionary=True)
+        get_info = f"""
+        SELECT Color, UsageType, ClothingType, NumUses 
+        FROM inventory
+        WHERE ItemID = {id}
+        """
+        cursor.execute(get_info)
+        result = cursor.fetchall()
+        return result[0]
     except mysql.connector.Error as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Database query failed")
@@ -360,25 +467,50 @@ def get_image_urls(page):
         connection.close()
 
 # API routes
-@app.get("/outfit/{location}/{usage_type}")
-def get_outfit(location: str, usage_type: str):
-    valid_usage_types = ["casual", "formal", "athletic"]
+
+# get the outfit for a user given their location, and the usage type they request
+@app.get("/outfit/{usage_type}")
+def get_outfit(usage_type: str):
+    valid_usage_types = {"Casual", "Formal"}
 
     if usage_type not in valid_usage_types:
-        raise HTTPException(status_code=400, detail="Invalid weather/usage type")
+        raise HTTPException(status_code=400, detail="Invalid usage type")
 
-    return fetch_outfit(location, usage_type)
+    return fetch_outfit(usage_type)
 
-@app.post("/laundry/update/{uses}")
-def change_uses(uses: int):
-    if uses<=0 or uses>100:
-        raise HTTPException(status_code=400, detail="Invalid uses value")
-    return update_uses(uses)
+# update the number of uses for an item to be considered "dirty" and user's location
+@app.post("/settings/update/{uses}/{location}")
+def change_uses(uses: int, location: str):
+    if uses<=0 or uses>100 or not is_valid_location(location):
+        raise HTTPException(status_code=400, detail="Invalid uses/location")
+    return update_settings(uses, location)
 
-@app.post("/select/{primary}/{secondary}/{item_id1}/{item_id2}")
-def outfit_db_update(item_id1: int, item_id2: int, primary: str, secondary: str):
-    return select_outfit(primary, secondary, item_id1, item_id2)
+# update database table values when a user selects an outfit
+@app.post("/select/{primary}/{secondary}/{item_id1}/{item_id2}/{item_id3}/{item_id4}")
+def outfit_db_update(item_id1: int, item_id2: int, item_id3: int, item_id4: int, primary: str, secondary: str):
+    return select_outfit(primary, secondary, item_id1, item_id2, item_id3, item_id4)
 
+# updates the classifications of a clothing item
+@app.post("/update/{id}/{usage}/{color}/{num_uses}/{item_type}")
+def reclassify_closet(id: int, usage: str, color: str, num_uses: int, item_type: str):
+    valid_usage_types = {"Casual", "Formal"}
+    valid_color_types = {"Black", "Blue", "Brown", 
+                         "Green", "Grey", "Orange", 
+                         "Pink", "Purple", "Red", 
+                         "White", "Yellow"}
+    valid_item_types = {"Blazers", "Cardigan", "Dresses",
+                        "Hoodie", "Jackets", "Jeans",
+                        "Jumpsuit", "Leggings", "Lounge Pants",
+                        "Shorts", "Skirts", "Sweaters", "Tank",
+                        "Tops", "Trousers", "Tshirts"}
+    if (id < 0 or num_uses < 0 or
+        usage not in valid_usage_types or 
+        color not in valid_color_types or 
+        item_type not in valid_item_types):
+        raise HTTPException(status_code=400, detail="Invalid classification change")
+    return edit_classification(id, usage, color, num_uses, item_type)
+
+# reset the clean status & number of uses for each item in the closet
 @app.post("/laundry/reset")
 def reset_laundry():
     return do_laundry()
@@ -400,14 +532,22 @@ def change_uses(outfit_info: Outfit_Info):
     }
 
     add_item_to_db(outfit_item_info)
-
     return "Successful"
 
+# returns image urls to display on closet page
 @app.get("/closet_images/{page}")
 def get_closet_images(page: int):
     if page < 0:
         raise HTTPException(status_code = 400, detail = "Invalid page value")
-    return get_image_urls(page)
+    return closet_items(page)
+
+# returns labels of an item given its id
+@app.get("/image_labels/{id}")
+def get_image_labels(id: str):
+    response = get_item_info(id)
+    return {"labels": [response["Color"], response["ClothingType"],
+            response["UsageType"], str(response["NumUses"])]}
+
 
 # # Mock POST request used by the app to start scanning clothing 
 # @app.post("/start/scanning")
