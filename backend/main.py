@@ -51,7 +51,7 @@ def get_presigned_url(file):
 # get the temperature of a location
 def get_temperature(location):
     #if location == "Pittsburgh":
-    #    return "cold"
+    #   return "cold"
     base_url = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={apikey}"
     response = requests.get(base_url)
     response.raise_for_status()
@@ -86,7 +86,61 @@ def is_valid_location(location):
         else: return False
     except Exception as e:
         return False
-    
+
+# get user preferences
+def get_user_preferences(cursor):
+    preferences_query = """
+    SELECT * FROM user_preferences
+    """
+    cursor.execute(preferences_query)
+    user_preferences = cursor.fetchall()
+    return user_preferences
+
+# calculate weights for all top/bottom combinations based on user preferences
+def get_weights(tops, bottoms, user_preferences):
+    weights = dict()
+    for top in tops:
+        for bottom in bottoms:
+            top_color = top["Color"]
+            bottom_color = bottom["Color"]
+            for pref in user_preferences:
+                primary = pref["primary_color"]
+                secondary = pref["secondary_color"]
+                if (((primary == top_color and secondary == bottom_color) or
+                    (primary == bottom_color and secondary == top_color)) and 
+                    pref["uses"] > 0):
+                    logger.info(f"weights: {weights}      pref: {pref}")
+                    weights[(top["ItemID"], bottom["ItemID"])] = pref["uses"]
+                    break
+            else:
+                weights[(top["ItemID"], bottom["ItemID"])] = 1
+    return weights
+
+# calculate weights for one piece outfits based on user preferences
+def get_weights_one_piece(tops, user_preferences):
+    weights = dict()
+    for top in tops:
+        top_color = top["Color"]
+        for pref in user_preferences:
+            primary = pref["primary_color"]
+            secondary = pref["secondary_color"]
+            if (primary == top_color and secondary == top_color and pref["uses"] > 0):
+                weights[top["ItemID"]] = pref["uses"] 
+                break
+        else:
+            weights[(top["ItemID"])] = 1
+    return weights
+
+# get the biased outfit based on weights with item ids as keys
+def get_biased_outfit(weights):
+    outfit_choices = list(weights.keys())
+    outfit_weights = list(weights.values())
+
+    generated_outfit = random.choices(outfit_choices, weights = outfit_weights, k = 1)[0]
+    if len(generated_outfit) == 2:
+        return (get_item_from_id(generated_outfit[0]), get_item_from_id(generated_outfit[1]))
+    return get_item_from_id(generated_outfit[0])
+
 # put one piece in top and have bottom empty
  
 # cold
@@ -209,23 +263,35 @@ def fetch_outfit(usage_type):
         # 1 piece or 2 piece outfit
         if one_pieces and (random.random() < len(one_pieces) / (len(one_pieces) + min(len(tops), len(bottoms))) or not tops or not bottoms):
             # 1 piece
-            # TODO: add user preferences here
-            one_piece = random.choice(one_pieces)
+            if random.random() < .3:
+                # biased outfit
+                user_preferences = get_user_preferences(cursor)
+                weights = get_weights_one_piece(tops, user_preferences)
+                one_piece = get_biased_outfit(weights)
+            else: 
+                # random outfit
+                one_piece = random.choice(one_pieces)
             return {"top": extract_info(one_piece), 
                     "bottom": None, 
                     "overwear": extract_info(overwear_item), 
                     "jacket": extract_info(jacket_item)}
         else:
             # 2 piece 
-            # TODO: add user preferences here
-            top = random.choice(tops) if tops else None
-            bottom = random.choice(bottoms) if bottoms else None
+            if random.random() < .3:
+                # biased outfit
+                user_preferences = get_user_preferences(cursor)
+                weights = get_weights(tops, bottoms, user_preferences)
+                top, bottom = get_biased_outfit(weights)
+            else:
+                # random outfit
+                top = random.choice(tops) if tops else None
+                bottom = random.choice(bottoms) if bottoms else None
             return {"top": extract_info(top), 
                     "bottom": extract_info(bottom), 
                     "overwear": extract_info(overwear_item), 
                     "jacket": extract_info(jacket_item)}
     except mysql.connector.Error as e:
-        raise HTTPException(status_code=500, detail="Database query failed")
+        raise HTTPException(status_code=500, detail="Database query failed HERE")
     finally:
         cursor.close()
         connection.close()
@@ -382,19 +448,7 @@ def add_item_to_db(item_info):
         raise HTTPException(status_code=500, detail="Failed to connect to the database")
     try:
         cursor = connection.cursor(dictionary=True)
-        get_last_id = f"""
-        SELECT ItemID
-        FROM inventory 
-        ORDER BY ItemID desc 
-        limit 1;
-        """
-
-        # TODO: change image_url to be set to whatever Riley names urls
-        cursor.execute(get_last_id)
-        last_id = cursor.fetchall()
-        print(last_id)
-        last_id = last_id[0]["ItemID"]
-        image_url = f"username{last_id+1}"
+        image_url = item_info["imageName"]
         clothing_type = item_info["clothingType"]
         color = item_info["color"]
         usage_type = item_info["usageType"]
@@ -466,6 +520,28 @@ def get_item_info(id):
         cursor.close()
         connection.close()
 
+def get_item_from_id(id):
+    connection = create_db_connection()
+    if connection is None:
+        raise HTTPException(status_code=500, detail="Failed to connect to the database")
+    try:
+        cursor = connection.cursor(dictionary=True)
+        logger.info(f"id: {id}")
+        get_info = f"""
+        SELECT ClothingType, Color, UsageType, Clean, NumUses, ItemID, ImageUrl 
+        FROM inventory
+        WHERE ItemID = {id}
+        """
+        cursor.execute(get_info)
+        result = cursor.fetchall()
+        return result[0]
+    except mysql.connector.Error as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Database query failed here 2")
+    finally:
+        cursor.close()
+        connection.close()
+
 # API routes
 
 # get the outfit for a user given their location, and the usage type they request
@@ -520,6 +596,7 @@ class Outfit_Info(BaseModel):
     clothingType: str
     color: str
     usageType: str
+    imageName: str
 
 # POST request used by the Xavier NX to send information about the classified outfit to the database
 @app.post("/outfit/info")
