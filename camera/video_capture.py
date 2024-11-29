@@ -97,6 +97,15 @@ def scan_clothing():
         exit()
 
     while camera.isOpened():
+        ret, img = camera.read() #take the picture
+        if not ret:
+            print("Error: Failed to capture image.")
+            break
+        cv2.imshow('Camera Feed', img)
+        cv2.waitKey(100)
+        cv2.destroyAllWindows()
+        cv2.waitKey(10)
+
         if take_picture: #when enter is pressed, take an image after a 2s delay
             print()
             time.sleep(2)
