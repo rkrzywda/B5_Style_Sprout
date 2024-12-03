@@ -109,7 +109,6 @@ def get_weights(tops, bottoms, user_preferences):
                 if (((primary == top_color and secondary == bottom_color) or
                     (primary == bottom_color and secondary == top_color)) and 
                     pref["uses"] > 0):
-                    logger.info(f"weights: {weights}      pref: {pref}")
                     weights[(top["ItemID"], bottom["ItemID"])] = pref["uses"]
                     break
             else:
@@ -561,6 +560,26 @@ def get_user_response():
     finally:
         cursor.close()
         connection.close()
+
+def accept_notice():
+    connection = create_db_connection()
+    if connection is None:
+        raise HTTPException(status_code=500, detail="Failed to connect to the database")
+    try:
+        cursor = connection.cursor(dictionary=True)
+        get_info = f"""
+        UPDATE privacy_notice 
+        SET hasAccepted = 1 
+        WHERE id = 1
+        """
+        cursor.execute(get_info)
+        connection.commit()
+    except mysql.connector.Error as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Database query failed")
+    finally:
+        cursor.close()
+        connection.close()
 # API routes
 
 # get the outfit for a user given their location, and the usage type they request
@@ -649,6 +668,12 @@ def get_image_labels(id: str):
 def privacy_notice():
     response = get_user_response()
     return response["hasAccepted"]
+
+# returns if the user has agreed to our privacy notice
+@app.post("/privacy_notice/accept")
+def accept_privacy_notice():
+    accept_notice()
+    
 
 # # Mock POST request used by the app to start scanning clothing 
 # @app.post("/start/scanning")
