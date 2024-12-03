@@ -51,7 +51,7 @@ def get_presigned_url(file):
 # get the temperature of a location
 def get_temperature(location):
     #if location == "Pittsburgh":
-    #   return "cold"
+    #  return "cold"
     base_url = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={apikey}"
     response = requests.get(base_url)
     response.raise_for_status()
@@ -96,38 +96,64 @@ def get_user_preferences(cursor):
     user_preferences = cursor.fetchall()
     return user_preferences
 
+# get outfit dislikes
+def get_outfit_dislikes(cursor):
+    dislikes_query = """
+    SELECT * FROM OutfitDislikes
+    """
+    cursor.execute(dislikes_query)
+    return cursor.fetchall()
+
 # calculate weights for all top/bottom combinations based on user preferences
-def get_weights(tops, bottoms, user_preferences):
+def get_weights(tops, bottoms, user_preferences, outfit_dislikes):
     weights = dict()
+    dislikes_map = {(dislike["Top"], dislike["Bottom"]): dislike["Dislikes"] for dislike in outfit_dislikes}
     for top in tops:
         for bottom in bottoms:
             top_color = top["Color"]
             bottom_color = bottom["Color"]
+            top_id = top["ItemID"]
+            bottom_id = bottom["ItemID"]
+            pref_weight = 1
+
             for pref in user_preferences:
                 primary = pref["primary_color"]
                 secondary = pref["secondary_color"]
-                if (((primary == top_color and secondary == bottom_color) or
-                    (primary == bottom_color and secondary == top_color)) and 
-                    pref["uses"] > 0):
-                    weights[(top["ItemID"], bottom["ItemID"])] = pref["uses"]
+                if ((primary == top_color and secondary == bottom_color) or
+                    (primary == bottom_color and secondary == top_color)):
+                    pref_weight = max(pref["uses"], 1)
                     break
-            else:
-                weights[(top["ItemID"], bottom["ItemID"])] = 1
+            dislikes = dislikes_map.get((top_id, bottom_id), 0)
+            weights[(top_id, bottom_id)] = max(pref_weight - dislikes, 0)
+
+    total_weight = sum(weights.values())
+    if total_weight <= 0:
+        for outfit in weights:
+            weights[outfit] = 1
     return weights
 
-# calculate weights for one piece outfits based on user preferences
-def get_weights_one_piece(tops, user_preferences):
+# calculate weights for one piece outfits (dresses) based on user preferences
+def get_weights_one_piece(tops, user_preferences, outfit_dislikes):
     weights = dict()
+    dislikes_map = {dislike["Top"]: dislike["Dislikes"] for dislike in outfit_dislikes if dislike["Bottom"] is None}
     for top in tops:
         top_color = top["Color"]
+        top_id = top["ItemID"]
+        pref_weight = 1
+
         for pref in user_preferences:
             primary = pref["primary_color"]
             secondary = pref["secondary_color"]
             if (primary == top_color and secondary == top_color and pref["uses"] > 0):
-                weights[top["ItemID"]] = pref["uses"] 
+                pref_weight = max(pref["uses"], 1)
                 break
-        else:
-            weights[(top["ItemID"])] = 1
+        dislikes = dislikes_map.get(top_id, 0)
+        weights[top_id] = max(pref_weight - dislikes, 0)
+    
+    total_weight = sum(weights.values())
+    if total_weight <= 0:
+        for outfit in weights:
+            weights[outfit] = 1
     return weights
 
 # get the biased outfit based on weights with item ids as keys
@@ -263,11 +289,14 @@ def fetch_outfit(usage_type):
         if one_pieces and (random.random() < len(one_pieces) / (len(one_pieces) + min(len(tops), len(bottoms))) or not tops or not bottoms):
             # 1 piece
             if random.random() < .3:
+                logger.info("Biased outfit")
                 # biased outfit
                 user_preferences = get_user_preferences(cursor)
-                weights = get_weights_one_piece(one_pieces, user_preferences)
+                outfit_dislikes = get_outfit_dislikes(cursor)
+                weights = get_weights_one_piece(one_pieces, user_preferences, outfit_dislikes)
                 one_piece = get_biased_outfit(weights)
             else: 
+                logger.info("Random outfit")
                 # random outfit
                 one_piece = random.choice(one_pieces)
             return {"top": extract_info(one_piece), 
@@ -277,11 +306,14 @@ def fetch_outfit(usage_type):
         else:
             # 2 piece 
             if random.random() < .3:
+                logger.info("Biased outfit")
                 # biased outfit
                 user_preferences = get_user_preferences(cursor)
-                weights = get_weights(tops, bottoms, user_preferences)
+                outfit_dislikes = get_outfit_dislikes(cursor)
+                weights = get_weights(tops, bottoms, user_preferences, outfit_dislikes)
                 top, bottom = get_biased_outfit(weights)
             else:
+                logger.info("Random outfit")
                 # random outfit
                 top = random.choice(tops) if tops else None
                 bottom = random.choice(bottoms) if bottoms else None
@@ -580,6 +612,29 @@ def accept_notice():
     finally:
         cursor.close()
         connection.close()
+
+def update_dislikes(item_id1, item_id2):
+    connection = create_db_connection()
+    if connection is None:
+        raise HTTPException(status_code=500, detail="Failed to connect to the database")
+    try:
+        cursor = connection.cursor(dictionary=True)
+        top = item_id1
+        bottom = item_id2 if item_id2 != -1 else "NULL"
+        get_info = f"""
+        INSERT INTO OutfitDislikes (Top, Bottom, Dislikes)
+        VALUES ({top}, {bottom}, 1)
+        ON DUPLICATE KEY UPDATE Dislikes = Dislikes + 1;
+        """
+        cursor.execute(get_info)
+        connection.commit()
+    except mysql.connector.Error as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Database query failed")
+    finally:
+        cursor.close()
+        connection.close()
+    
 # API routes
 
 # get the outfit for a user given their location, and the usage type they request
@@ -673,6 +728,12 @@ def privacy_notice():
 @app.post("/privacy_notice/accept")
 def accept_privacy_notice():
     accept_notice()
+
+# dislike the given outfit
+@app.post("/dislike/{itemid_1}/{itemid_2}")
+def dislike_outfit(itemid_1: int, itemid_2: int):
+    return update_dislikes(itemid_1, itemid_2)
+
     
 
 # # Mock POST request used by the app to start scanning clothing 
