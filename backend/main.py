@@ -137,9 +137,9 @@ def get_biased_outfit(weights):
     outfit_weights = list(weights.values())
 
     generated_outfit = random.choices(outfit_choices, weights = outfit_weights, k = 1)[0]
-    if len(generated_outfit) == 2:
+    if type(generated_outfit) == tuple:
         return (get_item_from_id(generated_outfit[0]), get_item_from_id(generated_outfit[1]))
-    return get_item_from_id(generated_outfit[0])
+    return get_item_from_id(generated_outfit)
 
 # put one piece in top and have bottom empty
  
@@ -266,7 +266,7 @@ def fetch_outfit(usage_type):
             if random.random() < .3:
                 # biased outfit
                 user_preferences = get_user_preferences(cursor)
-                weights = get_weights_one_piece(tops, user_preferences)
+                weights = get_weights_one_piece(one_pieces, user_preferences)
                 one_piece = get_biased_outfit(weights)
             else: 
                 # random outfit
@@ -537,11 +537,30 @@ def get_item_from_id(id):
         return result[0]
     except mysql.connector.Error as e:
         print(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database query failed here 2")
+        raise HTTPException(status_code=500, detail="Database query failed")
     finally:
         cursor.close()
         connection.close()
 
+def get_user_response():
+    connection = create_db_connection()
+    if connection is None:
+        raise HTTPException(status_code=500, detail="Failed to connect to the database")
+    try:
+        cursor = connection.cursor(dictionary=True)
+        get_info = f"""
+        SELECT hasAccepted
+        FROM privacy_notice
+        """
+        cursor.execute(get_info)
+        result = cursor.fetchall()
+        return result[0]
+    except mysql.connector.Error as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Database query failed")
+    finally:
+        cursor.close()
+        connection.close()
 # API routes
 
 # get the outfit for a user given their location, and the usage type they request
@@ -625,6 +644,11 @@ def get_image_labels(id: str):
     return {"labels": [response["Color"], response["ClothingType"],
             response["UsageType"], str(response["NumUses"])]}
 
+# returns if the user has agreed to our privacy notice
+@app.get("/privacy_notice/")
+def privacy_notice():
+    response = get_user_response()
+    return response["hasAccepted"]
 
 # # Mock POST request used by the app to start scanning clothing 
 # @app.post("/start/scanning")
