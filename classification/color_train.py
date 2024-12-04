@@ -8,7 +8,7 @@ from keras.utils import Sequence
 import sys
 import matplotlib.pyplot as plt
 from sklearn.utils import class_weight
-from keras.applications import ResNet101V2
+from keras.applications import ResNet50V2
 from keras._tf_keras.keras.callbacks import EarlyStopping,ReduceLROnPlateau
 
 early_stopping = EarlyStopping(
@@ -74,7 +74,7 @@ datagen = ImageDataGenerator(
 train_generator = DataGenerator(x_train, y_train, batch_size=32, augment=True, datagen=datagen)
 test_generator = DataGenerator(x_test, y_test, batch_size=32)
 
-base_model = ResNet101V2(weights='imagenet', include_top=False, input_shape=(224,224, 3))
+base_model = ResNet50V2(weights='imagenet', include_top=False, input_shape=(224,224, 3))
 
 base_model.trainable = True
 
@@ -104,4 +104,4 @@ history = model.fit(
     verbose=1
 )
 
-model.save('color_model_101.keras')
+model.save('color_model_502.keras')

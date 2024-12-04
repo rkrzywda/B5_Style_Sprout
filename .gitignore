@@ -4,7 +4,6 @@ backend/config.py
 *.keras
 camera/capstone_cv
 classification/background.png
-classification/test.py
 classification/final_test.py
 classification/image
 classification/type_subset
@@ -26,3 +25,4 @@ backend/test.py
 backend/test2.py
 venv
 .vscode
+classification/test.zip
