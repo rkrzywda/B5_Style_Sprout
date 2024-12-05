@@ -26,3 +26,5 @@ backend/test2.py
 venv
 .vscode
 classification/test.zip
+classification/color.py
+*.tar.gz

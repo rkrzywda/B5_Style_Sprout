@@ -13,9 +13,8 @@ from keras._tf_keras.keras.callbacks import EarlyStopping,ReduceLROnPlateau
 from keras._tf_keras.keras.models import load_model
 from PIL import Image, ImageEnhance
 
-
 color_model = tf.keras.models.load_model('models/color_model_50.keras')
-type_model = tf.keras.models.load_model('models/type_model_152.keras')
+type_model = tf.keras.models.load_model('models/type_model_50.keras')
 usage_model = tf.keras.models.load_model('models/usage_model_50.keras')
 correct_answers = [
 ['Blazers','Black','Formal'],
@@ -123,13 +122,17 @@ correct_colors = 0
 correct_types = 0
 correct_usages = 0
 
+datagen = ImageDataGenerator(
+    fill_mode='nearest',
+)
+translation = 30
+
 for i in range(1,81):
     img = load_img(f'test/{i}.png', target_size=(224,224), keep_aspect_ratio=True)
     img_array = img_to_array(img)
-    brightness_factor = 1.5
-    img_array = np.clip(img_array / brightness_factor, 0, 255)
-    img_array = img_array/255.0  
-
+    brightness_factor = 2
+    img_array = np.clip(img_array * brightness_factor, 0, 255)
+    img_array = img_array/255.0
     input_image = np.expand_dims(img_array, axis=0)
 
     color_predictions = color_model.predict(input_image, verbose=0)[0]
@@ -152,7 +155,7 @@ for i in range(1,81):
     if(usage_prediction==correct_answers[i-1][2]):
         correct_usages+=1
     
-print(f'Color Accuracy: {correct_colors/80.0} Type Accuracy: {correct_types/80.0} Usage Accuracy: {correct_usages/80.0}')
+print(f'Type Accuracy: {correct_types/80.0}')
         
 
 '''
