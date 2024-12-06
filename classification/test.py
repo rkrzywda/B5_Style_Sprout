@@ -1,21 +1,40 @@
 import tensorflow as tf
+print(tf.__version__)
 from tensorflow import keras
-from keras._tf_keras.keras.preprocessing.image import load_img, img_to_array,ImageDataGenerator
-import pandas as pd
-from sklearn.model_selection import train_test_split
+from keras.utils import load_img, img_to_array
+#import pandas as pd
+#from sklearn.model_selection import train_test_split
 import numpy as np
 from keras.utils import Sequence
 import sys
-import matplotlib.pyplot as plt
-from sklearn.utils import class_weight
+#import matplotlib.pyplot as plt
+#from sklearn.utils import class_weight
 from keras.applications import ResNet50
-from keras._tf_keras.keras.callbacks import EarlyStopping,ReduceLROnPlateau
-from keras._tf_keras.keras.models import load_model
+#from keras._tf_keras.keras.callbacks import EarlyStopping,ReduceLROnPlateau
+from keras.models import load_model
 from PIL import Image, ImageEnhance
+from alterative_color import *
 
-color_model = tf.keras.models.load_model('models/color_model_50.keras')
-type_model = tf.keras.models.load_model('models/type_model_50.keras')
-usage_model = tf.keras.models.load_model('models/usage_model_50.keras')
+class TFLiteModel:
+    def __init__(self, model_path: str):
+        self.interpreter = tf.lite.Interpreter(model_path)
+        self.interpreter.allocate_tensors()
+
+        self.input_details = self.interpreter.get_input_details()
+        self.output_details = self.interpreter.get_output_details()
+
+    def predict(self, *data_args):
+        assert len(data_args) == len(self.input_details)
+        for data, details in zip(data_args, self.input_details):
+            self.interpreter.set_tensor(details["index"], data)
+        self.interpreter.invoke()
+        return self.interpreter.get_tensor(self.output_details[0]["index"])
+
+
+
+#color_model = tf.keras.models.load_model('models/color_model_50.keras')
+#type_model = tf.keras.models.load_model('models/type_model_50.keras')
+#usage_model = tf.keras.models.load_model('models/usage_model_50.keras')
 correct_answers = [
 ['Blazers','Black','Formal'],
 ['Blazers','Black','Formal'],
@@ -122,26 +141,28 @@ correct_colors = 0
 correct_types = 0
 correct_usages = 0
 
-datagen = ImageDataGenerator(
-    fill_mode='nearest',
-)
 translation = 30
+wrong = []
 
 for i in range(1,81):
     img = load_img(f'test/{i}.png', target_size=(224,224), keep_aspect_ratio=True)
     img_array = img_to_array(img)
-    brightness_factor = 2
-    img_array = np.clip(img_array * brightness_factor, 0, 255)
+    brightness_factor = 1
+    #img_array = np.clip(img_array / brightness_factor, 0, 255)
     img_array = img_array/255.0
     input_image = np.expand_dims(img_array, axis=0)
 
-    color_predictions = color_model.predict(input_image, verbose=0)[0]
-    type_predictions = type_model.predict(input_image, verbose=0)[0]
+    #color_predictions = color_model.predict(input_image)[0]
+    #type_predictions = type_model.predict(input_image, verbose=0)[0]
 
-    type_prediction = type_classes[np.argmax(type_predictions)]
-    color_prediction = color_classes[np.argmax(color_predictions)]
-    usage_prediction = 'Casual'
+    #type_prediction = type_classes[np.argmax(type_predictions)]
+    color_prediction = predict_color(f'test/{i}.png')
+    print(f'{color_prediction} {correct_answers[i-1][1]}')
+    if(color_prediction==correct_answers[i-1][1]):
+        correct_colors+=1
+    #usage_prediction = 'Casual'
 
+    continue
     if type_prediction in {'Dresses', 'Skirts', 'Tops', 'Trousers', 'Jackets'}:
         usage_predictions = usage_model.predict(input_image, verbose=0)[0]
         if usage_predictions[0]>0.5:
@@ -152,10 +173,13 @@ for i in range(1,81):
         correct_colors+=1
     if(type_prediction==correct_answers[i-1][0]):
         correct_types+=1
+    else:
+        wrong.append(i)
     if(usage_prediction==correct_answers[i-1][2]):
         correct_usages+=1
-    
-print(f'Type Accuracy: {correct_types/80.0}')
+
+print(wrong)
+print(f'Color Accuracy: {correct_colors/80.0}')
         
 
 '''

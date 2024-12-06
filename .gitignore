@@ -28,3 +28,8 @@ venv
 classification/test.zip
 classification/color.py
 *.tar.gz
+*.index
+*.config
+*.pyc
+classification/ssd_mobilenet_v2_fpnlite_640x640_coco17_tpu-8
+ssd_mobilenet_v2_fpnlite_640x640_coco
