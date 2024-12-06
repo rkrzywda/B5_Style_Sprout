@@ -26,6 +26,20 @@ def extract_info(clothing_item):
             "UsageType": clothing_item["UsageType"],
             "NumUses": clothing_item["NumUses"]}
 
+# deletes image from s3
+def delete_image_from_s3(file):
+    s3 = boto3.client(
+    's3',
+    aws_access_key_id = access_key,
+    aws_secret_access_key = secret_key,
+    region_name = 'us-east-2'   
+    )
+    
+    try:
+        response = s3.delete_object(Bucket='style-sprout', Key=f'{file}.jpg')
+    except Exception as e:
+        logger.info(f"While deleting {file}.jpg an error occurred: {e} ")
+
 # gets the secure, presigned url from the s3 file
 def get_presigned_url(file):
     s3 = boto3.client(
@@ -635,6 +649,34 @@ def update_dislikes(item_id1, item_id2):
         cursor.close()
         connection.close()
     
+def delete_item_from_id(item_id):
+    connection = create_db_connection()
+    if connection is None:
+        raise HTTPException(status_code=500, detail="Failed to connect to the database")
+    try:
+        cursor = connection.cursor(dictionary=True)
+        get_url = f"""
+        SELECT ImageUrl
+        FROM inventory
+        WHERE ItemID = {item_id}
+        """
+        cursor.execute(get_url)
+        url = cursor.fetchall()[0]["ImageUrl"]
+        delete_image_from_s3(url)
+        delete_query = f"""
+        DELETE FROM inventory
+        WHERE ItemID = {item_id}
+        """
+        cursor.execute(delete_query)
+        connection.commit()
+        
+    except mysql.connector.Error as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Database query failed")
+    finally:
+        cursor.close()
+        connection.close()
+
 # API routes
 
 # get the outfit for a user given their location, and the usage type they request
@@ -734,6 +776,10 @@ def accept_privacy_notice():
 def dislike_outfit(itemid_1: int, itemid_2: int):
     return update_dislikes(itemid_1, itemid_2)
 
+# delete item from database and s3
+@app.post("/delete/{itemid_1}")
+def delete_item(itemid_1: int):
+    return delete_item_from_id(itemid_1)
     
 
 # # Mock POST request used by the app to start scanning clothing 
