@@ -65,7 +65,7 @@ def get_presigned_url(file):
 # get the temperature of a location
 def get_temperature(location):
     #if location == "Pittsburgh":
-    #  return "cold"
+    # return "cold"
     base_url = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={apikey}"
     response = requests.get(base_url)
     response.raise_for_status()
@@ -692,7 +692,7 @@ def get_outfit(usage_type: str):
 # update the number of uses for an item to be considered "dirty" and user's location
 @app.post("/settings/update/{uses}/{location}")
 def change_uses(uses: int, location: str):
-    if uses<=0 or uses>100 or not is_valid_location(location):
+    if uses<0 or uses>100 or not is_valid_location(location):
         raise HTTPException(status_code=400, detail="Invalid uses/location")
     return update_settings(uses, location)
 
