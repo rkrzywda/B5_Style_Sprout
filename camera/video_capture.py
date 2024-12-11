@@ -1,6 +1,7 @@
 import cv2
 import random, os
 import numpy as np
+import Jetson.GPIO as GPIO
 import time
 import requests
 from pynput import keyboard
@@ -8,6 +9,19 @@ import boto3
 from config import db_config, access_key, secret_key, api_ip, counter
 import tflite_runtime.interpreter as tflite
  
+#when wiring the pushbutton, a 3.3V power source with a ~1K ohm resistor is needed to act 
+#as a pull up resistor for the pushbutton to ensure that input voltage is not floating. 
+
+#if a 5V power source is used, only one button press will be detected
+#This is because the Jetso GPIO only detects a high if the voltage is greater than 2.0V
+#and less than or equal 3.3V
+
+BUTTON_PIN = 15
+
+GPIO.setmode(GPIO.BOARD);
+
+GPIO.setup(BUTTON_PIN, GPIO.IN)
+
 type_classes = ['Blazers',
 'Cardigan',
 'Dresses',
@@ -37,7 +51,7 @@ color_classes = ['Beige',
 'White',
 'Yellow'
 ]
-usage_classes=['casual', 'formal']
+usage_classes=['Casual', 'Formal']
 
 #Create models
 type_model = tflite.Interpreter(model_path='type.tflite')
@@ -55,35 +69,84 @@ usage_model.allocate_tensors()
 usage_input = usage_model.get_input_details()
 usage_output = usage_model.get_output_details()
 
-user_start_scanning = False
-take_picture = False
 exit_loop = False
+take_picture = False
 
-# print("Waiting for user to start scan")
-# while not user_start_scanning:
-#     pass
-
+def detect(channel):
+    global take_picture
+    take_picture = True
+    return
+    
+GPIO.add_event_detect(BUTTON_PIN, GPIO.FALLING, callback=detect, bouncetime=200) #debounce time of 200ms
 
 #for detecting a button press (desire to take a picture or exit)
 def on_press(key):
     global take_picture, exit_loop
     try:
-        if key.char == 'c':
-            take_picture = True
-        elif key.char == '0':
+        if key.char == '0':
             exit_loop = True
     except AttributeError:
         pass
 
+
+#callback function when the button is pressed, triggers start of procedure
+def processScanRequest(img):
+    before = time.time()
+    counter = 101
+    with open('counter.txt', 'r') as file:
+        content = file.read()
+        print(content)
+        counter = int(content)
+        
+    print("showing image")
+    cv2.imshow('Camera Feed', img)
+    cv2.waitKey(1500)
+    cv2.destroyAllWindows()
+    cv2.waitKey(100)
+    beforeClassification = time.time()
+    predicted_classes = feedIntoModel(img);
+    print("Predicted Classes: ",  predicted_classes)
+    timeClassification = time.time() - beforeClassification
+    print("Time taken to classify ", timeClassification)
+    
+    #write an image to send to s3
+    beforeS3 = time.time()
+    #imageName = f"username{counter}"
+    #cv2.imwrite(f"{imageName}.jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    #s3.upload_file(f"{imageName}.jpg", "style-sprout", f"{imageName}.jpg")
+    try:
+         with open('counter.txt', 'w') as file:
+             file.write(f"{counter+1}")
+    #    os.remove(f"{imageName}.jpg")
+    except FileNotFoundError:
+        print("file not found")
+   
+        
+    timeS3 = time.time() - beforeS3
+    print("Time taken to send to s3 ", timeS3)
+           
+    #send to SQL database
+    beforeDB = time.time()
+    #sendToDatabase(img, predicted_classes, imageName) #update the database
+    timeDB = time.time() - before
+    print("Time taken to send to db ", timeDB)
+
+    take_picture = False
+    totalTime = time.time() - beforeClassification
+    print("Total time taken ", totalTime)
+    return
+
+
+
 #continously take pictures, classify them, send to a database and s3
 def scan_clothing():
-    global take_picture, exit_loop
-    s3 = boto3.client(
-        's3',
-        aws_access_key_id = access_key,
-        aws_secret_access_key = secret_key,
-        region_name = 'us-east-2'
-    )
+    global exit_loop, take_picture
+    #s3 = boto3.client(
+    #    's3',
+    #    aws_access_key_id = access_key,
+    #    aws_secret_access_key = secret_key,
+    #    region_name = 'us-east-2'
+    #)
    
     #initialize the camera,
     #starter code for cv from CodingLikeMad's Reading Webcams in Python [Python OpenCV Tutorial]
@@ -95,57 +158,29 @@ def scan_clothing():
     if not camera.isOpened():
         print("Error: Could not open camera.")
         exit()
-
+        
     while camera.isOpened():
         ret, img = camera.read() #take the picture
         if not ret:
             print("Error: Failed to capture image.")
             break
         cv2.imshow('Camera Feed', img)
-        cv2.waitKey(100)
-        cv2.destroyAllWindows()
-        cv2.waitKey(10)
-
-        if take_picture: #when enter is pressed, take an image after a 2s delay
-            print()
+        cv2.waitKey(1)
+        
+        if take_picture:
+            cv2.destroyAllWindows()
+            cv2.waitKey(10)
             time.sleep(2)
             ret, img = camera.read() #take the picture
+            
             if not ret:
                 print("Error: Failed to capture image.")
-                break
-            print("showing image")
-            cv2.imshow('Camera Feed', img)
-            cv2.waitKey(2000)
-            cv2.destroyAllWindows()
-            cv2.waitKey(100)
-            predicted_classes = feedIntoModel(img);
-            print(predicted_classes)
-            
-            #write an image to send to s3
-            imageName = f"username{counter}"
-            cv2.imwrite(f"{imageName}.jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 90])
-            s3.upload_file(f"{imageName}.jpg", "style-sprout", imageName)
-            try:
-                os.remove(f"{imageName}.jpg")
-                print("Taken image was deleted")
-            except FileNotFoundError:
-                print("file not found")
-            counter += 1
-           
-            #send to SQL database
-            sendToDatabase(img, predicted_classes, imageName) #update the database
+                return
         
+            processScanRequest(img)
             take_picture = False
-
-       
-        if save_to_database: #button that indicates we should save the data has been pressed
-            print()
-            print("sending to database")
-            sendToDatabase(img, predicted_classes)
-            save_to_database = False
-       
-       
-        if exit_loop: #Button that we should exit the scanning loop has been sent
+            
+        if exit_loop: #Button that indicates we should stop scanning has been pressed
             print()
             print("exiting loop")
             break
@@ -207,7 +242,9 @@ def feedIntoModel(img):
 def main():
     listener = keyboard.Listener(on_press=on_press)
     listener.start()
-
+    
+    #GPIO.add_event_detect(BUTTON_PIN, GPIO.FALLING, callback=processScanRequest, bouncetime=200) #debounce time of 200ms
+    
     scan_clothing()
 
 main()
