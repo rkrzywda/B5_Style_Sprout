@@ -1,15 +1,18 @@
 import tensorflow as tf
+print(tf.__version__)
 from tensorflow import keras
-from keras._tf_keras.keras.preprocessing.image import load_img, img_to_array,ImageDataGenerator
+from keras.utils import load_img, img_to_array
+from keras.preprocessing.image import ImageDataGenerator
+#from keras._tf_keras.keras.preprocessing.image import load_img, img_to_array,ImageDataGenerator
 import pandas as pd
 from sklearn.model_selection import train_test_split
 import numpy as np
 from keras.utils import Sequence
 import sys
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from sklearn.utils import class_weight
-from keras.applications import ResNet50V2
-from keras._tf_keras.keras.callbacks import EarlyStopping,ReduceLROnPlateau
+from keras.applications import MobileNetV2
+from keras.callbacks import EarlyStopping,ReduceLROnPlateau
 
 early_stopping = EarlyStopping(
     monitor='val_loss',
@@ -74,15 +77,15 @@ datagen = ImageDataGenerator(
 train_generator = DataGenerator(x_train, y_train, batch_size=32, augment=True, datagen=datagen)
 test_generator = DataGenerator(x_test, y_test, batch_size=32)
 
-base_model = ResNet50V2(weights='imagenet', include_top=False, input_shape=(224,224, 3))
+base_model = MobileNetV2(weights='imagenet', include_top=False, input_shape=(224,224, 3))
 
 base_model.trainable = True
 
-model = tf.keras.Sequential([
-    base_model,
-    tf.keras.layers.Flatten(),
-    tf.keras.layers.Dense(df.shape[1] - 1,activation='softmax')
-])
+inputs = tf.keras.Input(shape=(224,224, 3))
+x = base_model(inputs)
+x = keras.layers.Flatten()(x)
+outputs = keras.layers.Dense(df.shape[1] - 1, activation='softmax')(x)
+model = tf.keras.Model(inputs, outputs)
 
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
               loss='categorical_crossentropy',
@@ -104,4 +107,7 @@ history = model.fit(
     verbose=1
 )
 
-model.save('color_model_502.keras')
+for layer in model.layers:
+    layer.trainable = False
+
+tf.saved_model.save(model, "saved_model/color_model_212")

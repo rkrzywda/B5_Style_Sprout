@@ -7,13 +7,27 @@ from keras.utils import load_img, img_to_array
 import numpy as np
 from keras.utils import Sequence
 import sys
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 #from sklearn.utils import class_weight
 from keras.applications import ResNet50
 #from keras._tf_keras.keras.callbacks import EarlyStopping,ReduceLROnPlateau
 from keras.models import load_model
 from PIL import Image, ImageEnhance
 from alterative_color import *
+
+'''
+model = tf.saved_model.load("saved_model/color_model_212")
+converter = tf.lite.TFLiteConverter.from_keras_model(model)
+tflite_model = converter.convert()
+with open("mobilemodel212v2.tflite", "wb") as f:
+    f.write(tflite_model)
+'''
+
+#loaded_model = tf.saved_model.load("saved_model/color_model_212")
+
+#infer = loaded_model.signatures["serving_default"]
+#print(infer.structured_input_signature)
+#print(infer.structured_outputs)
 
 class TFLiteModel:
     def __init__(self, model_path: str):
@@ -31,8 +45,14 @@ class TFLiteModel:
         return self.interpreter.get_tensor(self.output_details[0]["index"])
 
 
+'''
+color_model = tf.keras.models.load_model('color_model_50.keras')
+converter = tf.lite.TFLiteConverter.from_keras_model(color_model)
+tflite_model = converter.convert()
+with open("212model.tflite", "wb") as f:
+    f.write(tflite_model)
+'''
 
-#color_model = tf.keras.models.load_model('models/color_model_50.keras')
 #type_model = tf.keras.models.load_model('models/type_model_50.keras')
 #usage_model = tf.keras.models.load_model('models/usage_model_50.keras')
 correct_answers = [
@@ -157,9 +177,13 @@ for i in range(1,81):
 
     #type_prediction = type_classes[np.argmax(type_predictions)]
     color_prediction = predict_color(f'test/{i}.png')
-    print(f'{color_prediction} {correct_answers[i-1][1]}')
-    if(color_prediction==correct_answers[i-1][1]):
-        correct_colors+=1
+    #print(f'{color_prediction} {correct_answers[i-1][1]}')
+    #color_predictions = infer(input_2=tf.convert_to_tensor(input_image))["dense"]
+    #color_prediction = color_classes[np.argmax(color_predictions)]
+    #if(color_prediction==correct_answers[i-1][1]):
+        #correct_colors+=1
+    #else:
+        #print(f'{color_prediction} {correct_answers[i-1][1]}')
     #usage_prediction = 'Casual'
 
     continue
