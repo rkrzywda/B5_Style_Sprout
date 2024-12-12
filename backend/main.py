@@ -64,8 +64,8 @@ def get_presigned_url(file):
 
 # get the temperature of a location
 def get_temperature(location):
-    #if location == "Pittsburgh":
-    # return "cold"
+    if location == "Pittsburgh":
+     return "cold"
     base_url = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={apikey}"
     response = requests.get(base_url)
     response.raise_for_status()
@@ -130,15 +130,20 @@ def get_weights(tops, bottoms, user_preferences, outfit_dislikes):
             bottom_id = bottom["ItemID"]
             pref_weight = 1
 
-            for pref in user_preferences:
-                primary = pref["primary_color"]
-                secondary = pref["secondary_color"]
-                if ((primary == top_color and secondary == bottom_color) or
-                    (primary == bottom_color and secondary == top_color)):
-                    pref_weight = max(pref["uses"], 1)
-                    break
+            if user_preferences != None:
+                for pref in user_preferences:
+                    primary = pref["primary_color"]
+                    secondary = pref["secondary_color"]
+                    if ((primary == top_color and secondary == bottom_color) or
+                        (primary == bottom_color and secondary == top_color)):
+                        pref_weight = max(pref["uses"], 1)
+                        break
+
             dislikes = dislikes_map.get((top_id, bottom_id), 0)
-            weights[(top_id, bottom_id)] = max(pref_weight - dislikes, 0)
+            if dislikes > 0:
+                weights[(top_id, bottom_id)] = 0
+            else:
+                weights[(top_id, bottom_id)] = pref_weight
 
     total_weight = sum(weights.values())
     if total_weight <= 0:
@@ -155,14 +160,19 @@ def get_weights_one_piece(tops, user_preferences, outfit_dislikes):
         top_id = top["ItemID"]
         pref_weight = 1
 
-        for pref in user_preferences:
-            primary = pref["primary_color"]
-            secondary = pref["secondary_color"]
-            if (primary == top_color and secondary == top_color and pref["uses"] > 0):
-                pref_weight = max(pref["uses"], 1)
-                break
+        if user_preferences != None:
+            for pref in user_preferences:
+                primary = pref["primary_color"]
+                secondary = pref["secondary_color"]
+                if (primary == top_color and secondary == top_color and pref["uses"] > 0):
+                    pref_weight = max(pref["uses"], 1)
+                    break
+
         dislikes = dislikes_map.get(top_id, 0)
-        weights[top_id] = max(pref_weight - dislikes, 0)
+        if dislikes > 0:
+            weights[top_id] = 0
+        else:
+            weights[top_id] = pref_weight
     
     total_weight = sum(weights.values())
     if total_weight <= 0:
@@ -299,6 +309,7 @@ def fetch_outfit(usage_type):
         if jackets and temp == "cold":
             jacket_item = random.choice(jackets)
 
+        outfit_dislikes = get_outfit_dislikes(cursor)
         # 1 piece or 2 piece outfit
         if one_pieces and (random.random() < len(one_pieces) / (len(one_pieces) + min(len(tops), len(bottoms))) or not tops or not bottoms):
             # 1 piece
@@ -306,13 +317,13 @@ def fetch_outfit(usage_type):
                 logger.info("Biased outfit")
                 # biased outfit
                 user_preferences = get_user_preferences(cursor)
-                outfit_dislikes = get_outfit_dislikes(cursor)
                 weights = get_weights_one_piece(one_pieces, user_preferences, outfit_dislikes)
                 one_piece = get_biased_outfit(weights)
             else: 
                 logger.info("Random outfit")
-                # random outfit
-                one_piece = random.choice(one_pieces)
+                # random outfit excluding dislikes
+                weights = get_weights_one_piece(one_pieces, None, outfit_dislikes)
+                one_piece = get_biased_outfit(weights)
             return {"top": extract_info(one_piece), 
                     "bottom": None, 
                     "overwear": extract_info(overwear_item), 
@@ -323,14 +334,13 @@ def fetch_outfit(usage_type):
                 logger.info("Biased outfit")
                 # biased outfit
                 user_preferences = get_user_preferences(cursor)
-                outfit_dislikes = get_outfit_dislikes(cursor)
                 weights = get_weights(tops, bottoms, user_preferences, outfit_dislikes)
                 top, bottom = get_biased_outfit(weights)
             else:
                 logger.info("Random outfit")
-                # random outfit
-                top = random.choice(tops) if tops else None
-                bottom = random.choice(bottoms) if bottoms else None
+                # random outfit excluding dislikes
+                weights = get_weights(tops, bottoms, None, outfit_dislikes)
+                top, bottom = get_biased_outfit(weights)
             return {"top": extract_info(top), 
                     "bottom": extract_info(bottom), 
                     "overwear": extract_info(overwear_item), 
@@ -705,7 +715,7 @@ def outfit_db_update(item_id1: int, item_id2: int, item_id3: int, item_id4: int,
 @app.post("/update/{id}/{usage}/{color}/{num_uses}/{item_type}")
 def reclassify_closet(id: int, usage: str, color: str, num_uses: int, item_type: str):
     valid_usage_types = {"Casual", "Formal"}
-    valid_color_types = {"Black", "Blue", "Brown", 
+    valid_color_types = {"Beige", "Black", "Blue", "Brown", 
                          "Green", "Grey", "Orange", 
                          "Pink", "Purple", "Red", 
                          "White", "Yellow"}
