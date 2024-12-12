@@ -34,3 +34,5 @@ classification/color.py
 *.pyc
 classification/ssd_mobilenet_v2_fpnlite_640x640_coco17_tpu-8
 ssd_mobilenet_v2_fpnlite_640x640_coco
+.DS_Store
+classification/.DS_Store
