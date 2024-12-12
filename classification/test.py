@@ -165,6 +165,7 @@ translation = 30
 wrong = []
 
 for i in range(1,81):
+    print(i)
     img = load_img(f'test/{i}.png', target_size=(224,224), keep_aspect_ratio=True)
     img_array = img_to_array(img)
     brightness_factor = 1
@@ -180,8 +181,8 @@ for i in range(1,81):
     #print(f'{color_prediction} {correct_answers[i-1][1]}')
     #color_predictions = infer(input_2=tf.convert_to_tensor(input_image))["dense"]
     #color_prediction = color_classes[np.argmax(color_predictions)]
-    #if(color_prediction==correct_answers[i-1][1]):
-        #correct_colors+=1
+    if(color_prediction==correct_answers[i-1][1]):
+        correct_colors+=1
     #else:
         #print(f'{color_prediction} {correct_answers[i-1][1]}')
     #usage_prediction = 'Casual'
