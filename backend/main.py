@@ -65,7 +65,11 @@ def get_presigned_url(file):
 # get the temperature of a location
 def get_temperature(location):
     if location == "Pittsburgh":
-     return "cold"
+        return "cold"
+    if location == "hot":
+        return "hot"
+    if location == "neutral":
+        return "neutral"
     base_url = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={apikey}"
     response = requests.get(base_url)
     response.raise_for_status()
@@ -92,13 +96,22 @@ def get_temperature(location):
 
 # check for location validity
 def is_valid_location(location):
+    if location == "hot" or location == "cold" or location == "neutral":
+        logger.info("valid location")
+        return True
     base_url = f"http://api.openweathermap.org/data/2.5/weather?q={location}&appid={apikey}"
+    logger.info("checking location")
     try:
         response = requests.get(base_url)
+        logger.info(f"response: {response}")
         if response.status_code == 200:
+            logger.info("it is valid")
             return True
-        else: return False
+        else: 
+            logger.info("not valid")
+            return False
     except Exception as e:
+        logger.info("again, not valid")
         return False
 
 # get user preferences
@@ -302,7 +315,7 @@ def fetch_outfit(usage_type):
             overwear_item = random.choice(blazers)
 
         # generate overwear if we didn't generate a blazer
-        if not overwear_item and overwear and random.random() < len(overwear)/OVERWEAR_THRESHOLD:
+        if temp != "hot" and not overwear_item and overwear and random.random() < len(overwear)/OVERWEAR_THRESHOLD:
             overwear_item = random.choice(overwear)
         
         # generate jacket if it's cold
@@ -481,13 +494,24 @@ def update_settings(uses, location):
     if connection is None:
         raise HTTPException(status_code=500, detail="Failed to connect to the database")
     try:
+        if uses == None:
+            query = f"""
+            UPDATE settings
+            SET Location = "{location}"
+            """
+        elif location == None:
+            query = f"""
+            UPDATE settings
+            SET UsesBeforeDirty = {uses}
+            """
+        else:
+            query = f"""
+            UPDATE settings
+            SET UsesBeforeDirty = {uses},
+            Location = "{location}"
+            """
         cursor = connection.cursor(dictionary=True)
-        update_uses = f"""
-        UPDATE settings
-        SET UsesBeforeDirty = {uses},
-        Location = "{location}"
-        """
-        cursor.execute(update_uses)
+        cursor.execute(query)
         connection.commit()
     except mysql.connector.Error as e:
         print(f"Error: {e}")
@@ -702,7 +726,12 @@ def get_outfit(usage_type: str):
 # update the number of uses for an item to be considered "dirty" and user's location
 @app.post("/settings/update/{uses}/{location}")
 def change_uses(uses: int, location: str):
-    if uses<0 or uses>100 or not is_valid_location(location):
+    if uses == -1:
+        uses = None
+    if location == "-1":
+        location = None
+    logger.info(f"uses: {uses}  location: {location}")
+    if (location == None and uses == None) or (uses != None and (uses<0 or uses>100)) or (location != None and not is_valid_location(location)) :
         raise HTTPException(status_code=400, detail="Invalid uses/location")
     return update_settings(uses, location)
 
