@@ -8,7 +8,6 @@ from pydantic import BaseModel
 import logging
 import requests
 import boto3 # type: ignore
-#from B5_Style_Sprout.camera import video_capture
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -77,14 +76,6 @@ def get_presigned_url(file):
 
 # get the temperature of a location
 def get_temperature(location):
-    if location == "Pittsburgh":
-        return "cold"
-    if location == "hot":
-        return "hot"
-    if location == "neutral":
-        return "neutral"
-    if location == "cold":
-        return "cold"
     base_url = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={apikey}"
     response = requests.get(base_url)
     response.raise_for_status()
@@ -111,9 +102,6 @@ def get_temperature(location):
 
 # check for location validity
 def is_valid_location(location):
-    if location == "hot" or location == "cold" or location == "neutral":
-        logger.info("valid location")
-        return True
     base_url = f"http://api.openweathermap.org/data/2.5/weather?q={location}&appid={apikey}"
     logger.info("checking location")
     try:
@@ -835,9 +823,3 @@ def dislike_outfit(itemid_1: int, itemid_2: int):
 def delete_item(itemid_1: int):
     return delete_item_from_id(itemid_1)
     
-
-# # Mock POST request used by the app to start scanning clothing 
-# @app.post("/start/scanning")
-# def start_scanning():
-#     video_capture.user_start_scanning = True
-#     return
