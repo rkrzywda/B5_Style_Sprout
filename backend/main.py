@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from datetime import datetime, timedelta
 from pydantic import BaseModel
 import mysql.connector
 import random
@@ -14,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 OVERWEAR_THRESHOLD = 10
+
+presigned_url_cache = {}
 
 # returns necessary info of a clothing item
 def extract_info(clothing_item):
@@ -42,11 +45,17 @@ def delete_image_from_s3(file):
 
 # gets the secure, presigned url from the s3 file
 def get_presigned_url(file):
+    now = datetime.utcnow()
+    if file in presigned_url_cache:
+        cached_url, expiration_time = presigned_url_cache[file]
+        if expiration_time - now > timedelta(minutes=5):
+            return cached_url
+
     s3 = boto3.client(
-    's3',
-    aws_access_key_id = access_key,
-    aws_secret_access_key = secret_key,
-    region_name = 'us-east-2'   
+        's3',
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name='us-east-2'
     )
 
     try:
@@ -58,6 +67,10 @@ def get_presigned_url(file):
             },
             ExpiresIn=3600  # url expires in 1 hour
         )
+
+        # cache new url with expiration time
+        expiration_time = now + timedelta(seconds=3600)
+        presigned_url_cache[file] = (presigned_url, expiration_time)
         return presigned_url
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -70,6 +83,8 @@ def get_temperature(location):
         return "hot"
     if location == "neutral":
         return "neutral"
+    if location == "cold":
+        return "cold"
     base_url = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={apikey}"
     response = requests.get(base_url)
     response.raise_for_status()
@@ -629,11 +644,12 @@ def get_user_response():
         cursor = connection.cursor(dictionary=True)
         get_info = f"""
         SELECT hasAccepted
-        FROM privacy_notice
+        FROM settings
+        WHERE ID = 1
         """
         cursor.execute(get_info)
         result = cursor.fetchall()
-        return result[0]
+        return result[0]["hasAccepted"]
     except mysql.connector.Error as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Database query failed")
@@ -648,9 +664,9 @@ def accept_notice():
     try:
         cursor = connection.cursor(dictionary=True)
         get_info = f"""
-        UPDATE privacy_notice 
+        UPDATE settings 
         SET hasAccepted = 1 
-        WHERE id = 1
+        WHERE ID = 1
         """
         cursor.execute(get_info)
         connection.commit()
@@ -730,7 +746,6 @@ def change_uses(uses: int, location: str):
         uses = None
     if location == "-1":
         location = None
-    logger.info(f"uses: {uses}  location: {location}")
     if (location == None and uses == None) or (uses != None and (uses<0 or uses>100)) or (location != None and not is_valid_location(location)) :
         raise HTTPException(status_code=400, detail="Invalid uses/location")
     return update_settings(uses, location)
@@ -803,7 +818,7 @@ def get_image_labels(id: str):
 @app.get("/privacy_notice/")
 def privacy_notice():
     response = get_user_response()
-    return response["hasAccepted"]
+    return response
 
 # returns if the user has agreed to our privacy notice
 @app.post("/privacy_notice/accept")
